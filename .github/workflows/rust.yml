@@ -7,9 +7,6 @@ on:
     branches: [ "main" ]
 
 env:
-  LIBTORCH: $GITHUB_WORKSPACE/libtorch
-  LD_LIBRARY_PATH: $LIBTORCH/lib
-  LIBTORCH_BYPASS_VERSION_CHECK: 1
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -26,6 +23,10 @@ jobs:
         wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.1.1%2Bcpu.zip
         unzip libtorch-cxx11-abi-shared-with-deps-2.1.1+cpu.zip
     - name: Build
-      run: cargo build
+      run: |
+        export LIBTORCH=$GITHUB_WORKSPACE/libtorch
+        export LD_LIBRARY_PATH=$LIBTORCH/lib
+        export LIBTORCH_BYPASS_VERSION_CHECK=1
+        cargo build
     - name: Run tests
       run: cargo test
