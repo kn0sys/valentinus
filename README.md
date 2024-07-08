@@ -5,7 +5,7 @@ vector db built on top of lmdb
 
 * lmdb
 * libtorch 2.1.1
-* rust-bert/tch-rs
+* see [rust-bert/tch-rs](https://github.com/guillaume-be/rust-bert)
 
 # getting started
 
