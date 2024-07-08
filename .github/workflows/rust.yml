@@ -1,5 +1,10 @@
 name: build
 
+env:
+  LIBTORCH: $GITHUB_WORKSPACE/libtorch
+  LD_LIBRARY_PATH: $LIBTORCH/lib
+  LIBTORCH_BYPASS_VERSION_CHECK: 1
+
 on:
   push:
     branches: [ "main" ]
@@ -19,12 +24,10 @@ jobs:
       with:
         submodules: recursive
     - name: Install dependencies
-      run: |
+      run: pwd
+      #run: |
         wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.1.1%2Bcpu.zip
         unzip libtorch-cxx11-abi-shared-with-deps-2.1.1+cpu.zip
-        export LIBTORCH=$(pwd)/libtorch
-        export LD_LIBRARY_PATH="$LIBTORCH/lib"
-        export LIBTORCH_BYPASS_VERSION_CHECK=1
     - name: Build
       run: cargo build
     - name: Run tests
