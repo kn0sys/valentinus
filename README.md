@@ -1,3 +1,5 @@
+[![.github/workflows/rust.yml](https://github.com/kn0sys/valentinus/actions/workflows/rust.yml/badge.svg)](https://github.com/kn0sys/valentinus/actions/workflows/rust.yml)
+
 # valentinus
 vector db built on top of lmdb
 
