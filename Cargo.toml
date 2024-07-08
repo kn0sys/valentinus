@@ -1,0 +1,17 @@
+[package]
+name = "valentinus"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+env_logger     = "0.10.0"
+linfa-nn       = "0.7.0"
+lmdb           = { path = "./lmdb-rs" }
+log            = "0.4"
+ndarray        = "0.15.6"
+ndarray-linalg = "0.16.0"
+ndarray-rand   = "0.14.0"
+rand           = "0.8.5"
+rust-bert      = "0.22.0"
