@@ -4,7 +4,7 @@ use ndarray::Array;
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::Uniform;
 
-fn nn() {
+fn main() {
     let mut rng = rand::thread_rng();
     let num_samples = 10000;
     let dimensions = 5;
