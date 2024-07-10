@@ -1,16 +1,7 @@
-use ndarray::array;
-use ndarray_linalg::{normalize, NormalizeAxis};
 use rust_bert::pipelines::sentence_embeddings::{
     SentenceEmbeddingsBuilder,
     SentenceEmbeddingsModelType
 };
-
-use distance::L2Dist;
-use linfa_nn::*;
-use ndarray::Array;
-use ndarray_rand::RandomExt;
-use ndarray_rand::rand_distr::Uniform;
-use valentinus::embeddings::compute_nearest;
 
 fn main() {
 

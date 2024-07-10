@@ -10,7 +10,7 @@ use core::f32;
 
 use distance::L2Dist;
 use linfa_nn::*;
-use ndarray::{Array, Array2, ArrayBase, Axis, Dim, OwnedRepr, ShapeBuilder, Slice};
+use ndarray::*;
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::Uniform;
 
@@ -19,14 +19,15 @@ pub fn compute_nearest(data: Vec<Vec<f32>>, qv: Vec<f32>) -> usize {
     // convert nested embeddings vector to Array
     let dimensions = qv.len();
     let embed_len = data.len();
-    let mut data_array: ArrayBase<OwnedRepr<f32>, Dim<[usize; 2]>> = Array::zeros((embed_len, dimensions));
+    let mut data_array: ndarray::ArrayBase<OwnedRepr<f32>, ndarray::Dim<[usize; 2]>>
+        = ndarray::Array::zeros((embed_len, dimensions));
     for index in 0..dimensions {
         for index1 in 0..embed_len {
             data_array[[index1,index]] = data[index1][index]
         }
     }
     // Query data
-    let a_qv = Array::from_vec(qv);
+    let a_qv = ndarray::Array::from_vec(qv);
     // Kdtree using Euclidean distance
     let nn = CommonNearestNeighbour::KdTree.from_batch(&data_array, L2Dist).unwrap();
     // Compute the nearest point to the query vector
