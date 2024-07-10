@@ -5,8 +5,11 @@ vector db built on top of lmdb
 
 # dependencies
 
-* lmdb
-* libtorch 2.1.1
+* lmdb-rs        - database bindings
+* linfa          - machine learning
+* ndarray        - numpy equivalent
+* rust-bert       - embeddings encoding
+* libtorch 2.1.1 - required by rust-bert
 * see [rust-bert/tch-rs](https://github.com/guillaume-be/rust-bert)
 
 # getting started
@@ -24,3 +27,7 @@ export LIBTORCH="/home/user/libtorch"
 export LD_LIBRARY_PATH="$LIBTORCH/lib"
 export LIBTORCH_BYPASS_VERSION_CHECK=1
 ```
+
+# examples
+
+in progress

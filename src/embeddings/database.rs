@@ -2,15 +2,30 @@
 //! LMDB core interface.
 
 use std::{fs, path::Path};
-
-use lmdb::{
-    Cursor, Environment, Transaction, WriteFlags
-};
+use lmdb::*;
 use log::*;
 
-
+/// The name of this application
+pub const VALENTINUS: &str = "VALENTINUS";
+/// Test environment string for differentiating between dev and prod
+pub const TEST: &str = "test";
+pub const PROD: &str = "prod";
+// File path string for current user
+pub const USER: &str = "USER";
+/// Empty string for handling db errors.
+pub const EMPTY_DATA: &str = "";
+/// Keys indexer constant for writing all collections keys
+pub const VALENTINUS_KEYS: &str = "keys";
+/// Views indexer constant for writing all collections view names
+pub const VALENTINUS_VIEWS: &str = "views";
+/// Key lookup
+pub const VALENTINUS_KEY: &str = "key";
+/// View lookup
+pub const VALENTINUS_VIEW: &str = "view";
 
 /// The database environment for handling primary database operations.
+/// 
+/// By default the database will be written to /home/user/.valentinus/<ENV>/lmdb
 pub struct DatabaseEnvironment {
     pub env: Environment
 }
@@ -19,10 +34,10 @@ impl DatabaseEnvironment {
     /// Open the database for read, write and delete functionality.
     pub fn open(dir: &str) -> Self {
         info!("opening lmdb");
-        let user = std::env::var(crate::USER)
-            .unwrap_or(String::from(crate::USER)
+        let user = std::env::var(USER)
+            .unwrap_or(String::from(USER)
             .to_lowercase());
-        let string_path = format!("/home/{}/.{}/{}" ,user, crate::VALENTINUS, dir);
+        let string_path = format!("/home/{}/.{}/{}/lmdb" ,user, VALENTINUS, dir);
         fs::create_dir_all(&string_path).expect("failed to create lmdb directory");
         let file_path = Path::new(&string_path);
         let eb = Environment::new().open_with_permissions(file_path, 0o777);

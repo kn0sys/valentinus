@@ -1,21 +1,14 @@
-///! Library for handling embeddings
 
-// TODO: Write embeddings to lmdb
-
-// TODO: Read embeddings to lmdb
-
-// TODO: Indexer for faster queries
-
-use core::f32;
+//! Machine learning algorithms
 
 use distance::L2Dist;
 use linfa_nn::*;
+use log::info;
 use ndarray::*;
-use ndarray_rand::RandomExt;
-use ndarray_rand::rand_distr::Uniform;
 
 /// Compute the nearest embedding
 pub fn compute_nearest(data: Vec<Vec<f32>>, qv: Vec<f32>) -> usize {
+    info!("computing nearest embedding");
     // convert nested embeddings vector to Array
     let dimensions = qv.len();
     let embed_len = data.len();

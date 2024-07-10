@@ -1,3 +1,4 @@
+```rust
 use rust_bert::pipelines::sentence_embeddings::{
     SentenceEmbeddingsBuilder,
     SentenceEmbeddingsModelType
@@ -26,3 +27,4 @@ fn main() {
     let i_nearest = compute_nearest(data_output, qv_output.to_vec());
     println!("nearest embedding {:?}", data_sentences[i_nearest]);
 }
+```

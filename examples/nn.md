@@ -1,3 +1,4 @@
+```rust
 use distance::L2Dist;
 use linfa_nn::*;
 use ndarray::Array;
@@ -20,4 +21,4 @@ fn main() {
     let nearest = nn.k_nearest(query_vector.view(), 1).unwrap();
     println!("Nearest: {:?}", nearest[0].0)
 }
-
+````
