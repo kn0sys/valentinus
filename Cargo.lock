@@ -1888,6 +1888,7 @@ dependencies = [
  "log",
  "ndarray",
  "ndarray-rand",
+ "regex",
  "rust-bert",
  "serde",
  "serde_json",

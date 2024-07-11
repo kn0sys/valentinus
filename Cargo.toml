@@ -12,7 +12,8 @@ lmdb           = { path = "./lmdb-rs" }
 log            = "0.4"
 ndarray        = "0.15.6"
 ndarray-rand   = "0.14.0"
+regex          = "1.10.5"
 rust-bert      = "0.22.0"
 serde_json     = "1.0.120"
 serde          = { version = "1.0", features = ["derive"] } 
-uuid = "1.10.0"
+uuid           = "1.10.0"
