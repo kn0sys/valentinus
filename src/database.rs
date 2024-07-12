@@ -6,14 +6,13 @@ use lmdb::*;
 use log::*;
 
 /// The name of this application
-pub const VALENTINUS: &str = "VALENTINUS";
+const VALENTINUS: &str = "valentinus";
 /// Test environment string for differentiating between dev and prod
 pub const TEST: &str = "test";
-pub const PROD: &str = "prod";
+/// LMDB map size
+const MAP_SIZE: usize = 1 * 1024 * 1024 * 1024 * 1024;
 // File path string for current user
 pub const USER: &str = "USER";
-/// Empty string for handling db errors.
-pub const EMPTY_DATA: &str = "";
 /// Keys indexer constant for writing all collections keys
 pub const VALENTINUS_KEYS: &str = "keys";
 /// Views indexer constant for writing all collections view names
@@ -40,7 +39,7 @@ impl DatabaseEnvironment {
         let string_path = format!("/home/{}/.{}/{}/lmdb" ,user, VALENTINUS, dir);
         fs::create_dir_all(&string_path).expect("failed to create lmdb directory");
         let file_path = Path::new(&string_path);
-        let eb = Environment::new().open_with_permissions(file_path, 0o777);
+        let eb = Environment::new().set_map_size(MAP_SIZE).open_with_permissions(file_path, 0o777);
         // panic because we can't do anything if the database fails to open
         if eb.is_err() {
             panic!("failed to open lmdb");
@@ -61,7 +60,7 @@ impl DatabaseEnvironment {
         let mut txn = e.begin_rw_txn().unwrap();
         {
             let db = txn.open_rw_cursor(e.open_db(None).unwrap());
-            db.unwrap().put(k, v, WriteFlags::NO_DUP_DATA).unwrap();
+            db.unwrap().put(k, v, WriteFlags::NO_OVERWRITE).unwrap();
         }
         match txn.commit() {
             Err(_) => error!("failed to commit!"),
@@ -75,11 +74,11 @@ impl DatabaseEnvironment {
     /// from database operations failures.
     pub fn read(e: &Environment, k: &Vec<u8>) -> Vec<u8> {
         info!("reading from lmdb");
-        let mut txn = e.begin_rw_txn().unwrap();
+        let txn = e.begin_rw_txn().unwrap();
         let mut result: Vec<u8> = Vec::new();
         info!("initialized read result: {:?}", result);
         {
-            let db = txn.open_rw_cursor(e.open_db(None).unwrap());
+            let db = txn.open_ro_cursor(e.open_db(None).unwrap());
             let get = db.unwrap().get(Some(k), None, 0);
             if get.is_err() {
                 return Vec::new();

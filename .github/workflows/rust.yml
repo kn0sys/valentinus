@@ -2,6 +2,9 @@ name: build
 
 on:
   push:
+    paths-ignore:
+      - 'examples/**'
+      - 'README.md'
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
@@ -27,5 +30,4 @@ jobs:
         export LIBTORCH=$GITHUB_WORKSPACE/libtorch
         export LD_LIBRARY_PATH=$LIBTORCH/lib
         export LIBTORCH_BYPASS_VERSION_CHECK=1
-        cargo build && cargo test
-
+        cargo build && RUST_TEST_THREADS=1 cargo test

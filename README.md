@@ -8,7 +8,7 @@ vector db built on top of lmdb
 * lmdb-rs        - database bindings
 * linfa          - machine learning
 * ndarray        - numpy equivalent
-* rust-bert       - embeddings encoding
+* rust-bert      - embeddings encoding
 * libtorch 2.1.1 - required by rust-bert
 * see [rust-bert/tch-rs](https://github.com/guillaume-be/rust-bert)
 
@@ -30,4 +30,8 @@ export LIBTORCH_BYPASS_VERSION_CHECK=1
 
 # examples
 
-in progress
+see [examples](./examples/embeddings.md)
+
+# reference
+
+[inspired by this chromadb python tutorial](https://realpython.com/chromadb-vector-database/#what-is-a-vector-database)

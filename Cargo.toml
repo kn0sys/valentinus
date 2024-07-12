@@ -2,13 +2,25 @@
 name = "valentinus"
 version = "0.1.0"
 edition = "2021"
+authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
+description = "Proof-of-concept vector db built on top of LMDB"
+repository = "https://github.com/kn0sys/valentinus"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = [
+    "nlp",
+    "deep-learning",
+    "machine-learning",
+    "transformers",
+    "vector-database"
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 env_logger     = "0.10.0"
 linfa-nn       = "0.7.0"
-lmdb           = { path = "./lmdb-rs" }
+lmdb           = { version = "0.8.0", path = "./lmdb-rs" }
 log            = "0.4"
 ndarray        = "0.15.6"
 ndarray-rand   = "0.14.0"
