@@ -1,6 +1,6 @@
 [package]
 name = "valentinus"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 description = "Proof-of-concept vector db built on top of LMDB"

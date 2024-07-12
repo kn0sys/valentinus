@@ -285,8 +285,6 @@ pub fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
 #[cfg(test)]
 mod tests {
 
-    use std::str::from_utf8;
-
     use super::*;
 
     const SLICE_DOCUMENTS: [&str; 10] = [
@@ -316,7 +314,6 @@ mod tests {
 
     #[test]
     fn new_collection_test() {
-        env_logger::init();
         let mut documents: Vec<String> = Vec::new();
         for slice in 0..SLICE_DOCUMENTS.len() {
             documents.push(String::from(SLICE_DOCUMENTS[slice]));
