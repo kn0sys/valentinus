@@ -32,3 +32,36 @@ pub fn compute_nearest(data: Vec<Vec<f32>>, qv: Vec<f32>) -> usize {
     let location = data.iter().rposition(|x| x == &v_nearest);
     location.unwrap_or(0)
 }
+
+#[cfg(test)]
+mod tests {
+
+    use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType};
+
+    use super::*;
+
+    #[test]
+    fn compute_nearest_test() {
+        let qv = "I like pizza";
+        let model = SentenceEmbeddingsBuilder::remote(
+            SentenceEmbeddingsModelType::AllMiniLmL12V2
+        ).create_model().expect("model");
+    
+        let qv_sentence = [qv];
+        let data_sentences = [
+            "The canine barked loudly.",
+            "The dog made a noisy bark.",
+            "He ate a lot of pizza.",
+            "He devoured a large quantity of pizza pie.",
+            "We went on a picnic.",
+            "Water is made of two hyroden atoms and one oxygen atom.",
+            "A triangle has 3 sides",
+        ];
+    
+        let data_output = model.encode(&data_sentences).expect("embeddings");
+        let qv_output = &model.encode(&qv_sentence).expect("embeddings")[0];
+        let i_nearest = compute_nearest(data_output, qv_output.to_vec());
+
+        assert_eq!(data_sentences[i_nearest], data_sentences[2]);
+    }
+}
