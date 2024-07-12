@@ -20,7 +20,7 @@ keywords = [
 [dependencies]
 env_logger     = "0.10.0"
 linfa-nn       = "0.7.0"
-lmdb           = { version = "0.8.0", path = "./lmdb-rs" }
+lmdb-rs        = "0.7.6"
 log            = "0.4"
 ndarray        = "0.15.6"
 ndarray-rand   = "0.14.0"

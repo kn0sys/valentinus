@@ -1,7 +1,6 @@
 
 //! Library for handling embeddings
 
-use lmdb::Environment;
 use regex::Regex;
 use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType};
 use uuid::Uuid;
@@ -80,9 +79,9 @@ impl EmbeddingCollection {
                 return Default::default();
             }
             // check if  the views name is unique
-            let dbenv = DatabaseEnvironment::open(TEST).env;
+            let db: DatabaseEnvironment= DatabaseEnvironment::open(TEST);
             let views_lookup: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
-            let views = DatabaseEnvironment::read(&dbenv, &views_lookup);
+            let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup);
             let views_parsed = std::str::from_utf8(&views).unwrap_or(Default::default());
             let view_indexer: KeyViewIndexer = serde_json::from_str(views_parsed).unwrap_or(Default::default());
             if view_indexer.values.contains(&name) {
@@ -100,7 +99,9 @@ impl EmbeddingCollection {
     /// Save a collection to the database. Error if the key already exists.
     pub fn save(&mut self) {
         info!("saving new embedding collection: {}", self.view);
-        // self.set_indexes();
+        self.set_key_indexes();
+        self.set_kv_index();
+        self.set_view_indexes();
         // set the embeddings
         let model = SentenceEmbeddingsBuilder::remote(
             SentenceEmbeddingsModelType::AllMiniLmL12V2
@@ -114,8 +115,8 @@ impl EmbeddingCollection {
         let key = &self.key;
         let b_collection: Vec<u8> = Vec::from(collection.as_bytes());
         let b_key = Vec::from(key.as_bytes());
-        let dbenv = DatabaseEnvironment::open(TEST).env;
-        DatabaseEnvironment::write(&dbenv, &b_key, &b_collection);
+        let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
+        DatabaseEnvironment::write(&db.env, &db.handle, &b_key, &b_collection);
     }
     /// Fetch all known keys or views in the database.
     ///
@@ -129,8 +130,8 @@ impl EmbeddingCollection {
             b_key = Vec::from(VALENTINUS_VIEWS.as_bytes());
         }
         info!("fetching keys embedding collection");
-        let dbenv = DatabaseEnvironment::open(TEST).env;
-        let keys = DatabaseEnvironment::read(&dbenv,&b_key);
+        let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
+        let keys = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
         let keys_parsed = std::str::from_utf8(&keys).unwrap_or(Default::default());
         let indexer: KeyViewIndexer = serde_json::from_str(keys_parsed).unwrap_or(Default::default());
         indexer
@@ -172,10 +173,10 @@ impl EmbeddingCollection {
     pub fn delete(view_name: String) {
         info!("deleting {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name));
-        let dbenv = DatabaseEnvironment::open(TEST).env;
+        let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
         let s_key = collection.key;
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
-        DatabaseEnvironment::delete(&dbenv, &b_key);
+        DatabaseEnvironment::delete(&db.env, &db.handle, &b_key);
     }
     // getters
     pub fn get_documents(&self) -> &Vec<String> {
@@ -196,10 +197,10 @@ impl EmbeddingCollection {
     }
     /// Sets the list of views in the database
     pub fn set_view_indexes(&self) {
-        let dbenv: Environment = DatabaseEnvironment::open(TEST).env;
+        let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
         let b_key: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
         // get the current indexes
-        let b_keys: Vec<u8> = DatabaseEnvironment::read(&dbenv, &b_key);
+        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
         let keys_parsed = std::str::from_utf8(&b_keys).unwrap_or(Default::default());
         let kv_index: KeyViewIndexer = serde_json::from_str(keys_parsed)
             .unwrap_or(Default::default());
@@ -214,16 +215,16 @@ impl EmbeddingCollection {
         let v_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let s_v_indexer: String = serde_json::to_string(&v_indexer).unwrap_or(Default::default());
         let b_v_indexer: Vec<u8> = Vec::from(s_v_indexer.as_bytes());
-        DatabaseEnvironment::delete(&dbenv, &b_key);
-        DatabaseEnvironment::write(&dbenv, &b_key, &b_v_indexer);
+        DatabaseEnvironment::delete(&db.env, &db.handle, &b_key);
+        DatabaseEnvironment::write(&db.env, &db.handle, &b_key, &b_v_indexer);
     }
     /// Sets the lists of keys in the database
     pub fn set_key_indexes(&self) {
         // set the keys indexer
-        let dbenv: Environment = DatabaseEnvironment::open(TEST).env;
+        let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
         let b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
         // get the current indexes
-        let b_keys: Vec<u8> = DatabaseEnvironment::read(&dbenv, &b_key);
+        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
         let keys_parsed = std::str::from_utf8(&b_keys).unwrap_or(Default::default());
         let kv_index: KeyViewIndexer = serde_json::from_str(keys_parsed)
             .unwrap_or(Default::default());
@@ -238,16 +239,16 @@ impl EmbeddingCollection {
         let k_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let s_k_indexer: String = serde_json::to_string(&k_indexer).unwrap_or(Default::default());
         let b_k_indexer: Vec<u8> = Vec::from(s_k_indexer.as_bytes());
-        DatabaseEnvironment::write(&dbenv, &b_key, &b_k_indexer);
+        DatabaseEnvironment::write(&db.env, &db.handle, &b_key, &b_k_indexer);
     }
     /// Sets key-to-view lookups
-    pub fn set_indexes(&self) {
-        let dbenv: Environment = DatabaseEnvironment::open(TEST).env;
-        let kv_lookup_key: String = format!("{}-{}-{}", VALENTINUS_KEY, VALENTINUS_VIEW, self.view);
+    pub fn set_kv_index(&self) {
+        let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
+        let kv_lookup_key: String = format!("{}-{}", VALENTINUS_KEY, self.view);
         let b_kv_lookup_key: Vec<u8> = Vec::from(kv_lookup_key.as_bytes());
         let kv_lookup_value: String = String::from(&self.key);
         let b_v_indexer: Vec<u8> = Vec::from(kv_lookup_value.as_bytes());
-        DatabaseEnvironment::write(&dbenv, &b_kv_lookup_key, &b_v_indexer);
+        DatabaseEnvironment::write(&db.env, &db.handle, &b_kv_lookup_key, &b_v_indexer);
     }
 }
 
@@ -256,23 +257,25 @@ impl EmbeddingCollection {
 /// then key lookup will override the latter.
 pub fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
     if key.is_some() {
-        let dbenv = DatabaseEnvironment::open(TEST).env;
+        let db = DatabaseEnvironment::open(TEST);
         let s_key = key.unwrap_or(Default::default());
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
-        let collection = DatabaseEnvironment::read(&dbenv, &b_key);
+        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
         let collection_parsed = std::str::from_utf8(&collection).unwrap_or(Default::default());
         let result: EmbeddingCollection = serde_json::from_str(collection_parsed)
             .unwrap_or(Default::default());
         result
     } else {
-        let dbenv = DatabaseEnvironment::open(TEST).env;
+        debug!("performing key view lookup");
+        let db = DatabaseEnvironment::open(TEST);
         let s_view = view.unwrap_or(Default::default());
-        let kv_lookup: String = format!("{}-{}-{}", 
-            VALENTINUS_KEY, VALENTINUS_VIEW, s_view);
+        let kv_lookup: String = format!("{}-{}", VALENTINUS_KEY, s_view);
+        debug!("kv lookup: {:?}", kv_lookup);
         let b_kv_lookup: Vec<u8> = Vec::from(kv_lookup.as_bytes());
-        let key: Vec<u8> = DatabaseEnvironment::read(&dbenv, &b_kv_lookup);
-        let collection = DatabaseEnvironment::read(&dbenv, &key);
-        let collection_parsed = std::str::from_utf8(&collection).unwrap_or(Default::default());
+        let key: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_kv_lookup);
+        debug!("key: {:?}", key);
+        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &key);
+        let collection_parsed: &str = std::str::from_utf8(&collection).unwrap_or(Default::default());
         let result: EmbeddingCollection = serde_json::from_str(collection_parsed)
             .unwrap_or(Default::default());
         result
@@ -282,11 +285,11 @@ pub fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
 #[cfg(test)]
 mod tests {
 
+    use std::str::from_utf8;
+
     use super::*;
 
-    #[test]
-    fn new_collection_test() {
-        let slice_documents: [&str; 10] = [
+    const SLICE_DOCUMENTS: [&str; 10] = [
             "The latest iPhone model comes with impressive features and a powerful camera.",
             "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
             "Einstein's theory of relativity revolutionized our understanding of space and time.",
@@ -298,7 +301,7 @@ mod tests {
             "Startup companies often face challenges in securing funding and scaling their operations.",
             "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
         ];
-        let slice_metadata: [&str; 10] = [
+    const  SLICE_METADATA: [&str; 10] = [
             "technology",
             "travel",
             "science",
@@ -310,13 +313,17 @@ mod tests {
             "business",
             "music",
         ];
+
+    #[test]
+    fn new_collection_test() {
+        env_logger::init();
         let mut documents: Vec<String> = Vec::new();
-        for slice in 0..slice_documents.len() {
-            documents.push(String::from(slice_documents[slice]));
+        for slice in 0..SLICE_DOCUMENTS.len() {
+            documents.push(String::from(SLICE_DOCUMENTS[slice]));
         }
         let mut metadata: Vec<String> = Vec::new();
-        for slice in 0..slice_metadata.len() {
-            metadata.push(String::from(slice_metadata[slice]));
+        for slice in 0..SLICE_METADATA.len() {
+            metadata.push(String::from(SLICE_METADATA[slice]));
         }
         let mut ids: Vec<String> = Vec::new();
         for i in 0..documents.len() {
