@@ -17,11 +17,7 @@ vector db built on top of lmdb
 # getting started
 
 ```bash
-git clone --recursive https://github.com/kn0sys/valentinus
-```
-
-```bash
-git submodule --init --update
+git clone https://github.com/kn0sys/valentinus
 ```
 
 ```bash
