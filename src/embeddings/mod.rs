@@ -148,8 +148,9 @@ impl EmbeddingCollection {
         // run metadata filter
         if s_metadata != String::new() {
             for m in 0..collection.metadata.len() {
-                if collection.metadata[index] == s_metadata {
-                    collection.embeddings.remove(m-removals);
+                let real_index = m-removals;
+                if collection.metadata[real_index] == s_metadata {
+                    collection.embeddings.remove(real_index);
                     removals += 1;
                 }
                 index += 1;
@@ -232,3 +233,5 @@ fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
         result
     }
 }
+
+
