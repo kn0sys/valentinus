@@ -3,11 +3,15 @@
 
 use distance::L2Dist;
 use linfa_nn::*;
-use log::info;
+use log::{error, info};
 use ndarray::*;
 
 /// Compute the nearest embedding
 pub fn compute_nearest(data: Vec<Vec<f32>>, qv: Vec<f32>) -> usize {
+    if data.is_empty() || qv.is_empty() {
+        error!("can't compute empty vectors");
+        return 0;
+    }
     info!("computing nearest embedding");
     // convert nested embeddings vector to Array
     let dimensions = qv.len();
