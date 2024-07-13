@@ -35,21 +35,29 @@ pub struct DatabaseEnvironment {
 }
 
 impl DatabaseEnvironment {
-    /// Instantiation of ```Environment``` and ```DbHandle```
+    /// Opens environment in specified path
     pub fn open(env: &str) -> Self {
         const MAP_SIZE: u64  = 1 * 1024 * 1024 * 1024;
+        let mut user = match std::env::var("LMDB_USER") {
+            Err(_) => String::new(),
+            Ok(user) => user,
+        };
+        if user == String::new() {
+            user = String::from("user");
+            error!("LMDB_USER environment variable not set, defaulting to \"user\"")
+        }
         info!("excecuting lmdb open");
-        let file_path = format!(
-            "/home/{}/.{}/",
-            std::env::var("USER").unwrap_or(String::from("user")),
-            "valentinus",
-        );
+        let file_path = format!("/home/{}/.{}/", user, "valentinus");
         let env = EnvBuilder::new()
-            // increase map size for writing the multisig txset
             .map_size(MAP_SIZE)
             .open(format!("{}/{}", file_path, env), 0o777)
             .expect(&format!("could not open LMDB at {}", file_path));
-        let handle = env.get_default_db(DbFlags::empty()).unwrap();
+        let default = env.get_default_db(DbFlags::empty());
+        if default.is_err() {
+            // this should never happen
+            panic!("LMDB failed to set default db");
+        }
+        let handle = default.unwrap();
         DatabaseEnvironment { env, handle }
     }
     /// Write a key/value pair to the database. It is not possible to
@@ -57,18 +65,19 @@ impl DatabaseEnvironment {
     /// overwrite an existing key/value pair.
     pub fn write(e: &Environment, h: &DbHandle, k: &Vec<u8>, v: &Vec<u8>) {
         info!("excecuting lmdb write");
-        // don't try and write empty keys
         if k.is_empty() {
             error!("can't write empty key");
             return;
         }
         let txn = e.new_transaction().unwrap();
         {
-            // get a database bound to this transaction
             let db = txn.bind(&h);
             let pair = vec![(k, v)];
             for &(key, value) in pair.iter() {
-                db.set(key, value).unwrap();
+                match db.set(key, value) {
+                    Err(_) => error!("failed to commit"),
+                    Ok(_) => (),
+                }
             }
         }
         match txn.commit() {
@@ -101,14 +110,12 @@ impl DatabaseEnvironment {
     /// Deletes a key/value pair from the database
     pub fn delete(e: &Environment, h: &DbHandle, k: &Vec<u8>) {
         info!("excecuting lmdb delete");
-        // don't try and delete empty keys
         if k.is_empty() {
             error!("can't delete empty key");
             return;
         }
         let txn = e.new_transaction().unwrap();
         {
-            // get a database bound to this transaction
             let db = txn.bind(&h);
             db.del(k).unwrap_or_else(|_| error!("failed to delete"));
         }
