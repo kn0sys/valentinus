@@ -8,6 +8,7 @@ description = "Proof-of-concept vector db built with LMDB bindings"
 repository = "https://github.com/kn0sys/valentinus"
 license = "Apache-2.0"
 readme = "README.md"
+build = "build.rs"
 keywords = [
     "nlp",
     "deep-learning",
@@ -15,6 +16,14 @@ keywords = [
     "transformers",
     "vector-database"
 ]
+
+[lib]
+name = "valentinus"
+path = "src/lib.rs"
+crate-type = ["lib"]
+
+[features]
+doc-only = ["rust-bert/doc-only"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -30,3 +39,6 @@ rust-bert      = "0.22.0"
 serde_json     = "1.0.120"
 serde          = { version = "1.0", features = ["derive"] } 
 uuid           = "1.10.0"
+
+[package.metadata.docs.rs]
+features = ["doc-only"]
