@@ -37,9 +37,26 @@ pub fn compute_nearest(data: Vec<Vec<f32>>, qv: Vec<f32>) -> usize {
     location.unwrap_or(0)
 }
 
+fn normalize(x: ArrayView1<f32>) -> f32 {
+    x.dot(&x).sqrt()
+}
+
+/// Compute cosine similarity for two vectors
+/// 
+/// Reference: https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/linear_algebra.html
+pub fn compute_cosine_similarity(u: Vec<f32>, v: Vec<f32>) -> f32 {
+    let a1 = Array1::from_vec(u);
+    let a2 = Array1::from_vec(v);
+    let dot_product = a1.dot(&a2);
+    let a1_norm = normalize(a1.view());
+    let a2_norm = normalize(a2.view());
+    dot_product / (a1_norm * a2_norm)
+}
+
 #[cfg(test)]
 mod tests {
 
+    use log::debug;
     use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType};
 
     use super::*;
@@ -67,5 +84,23 @@ mod tests {
         let i_nearest = compute_nearest(data_output, qv_output.to_vec());
 
         assert_eq!(data_sentences[i_nearest], data_sentences[2]);
+    }
+
+    #[test]
+    fn cosine_similarity_test() {
+        let threshold: f32 = 0.5;
+        let model = SentenceEmbeddingsBuilder::remote(
+            SentenceEmbeddingsModelType::AllMiniLmL12V2
+        ).create_model().expect("model");
+        let dog = ["dog"];
+        let cat = ["cat"];
+        let apple = ["apple"];
+        let dog_embedding = &model.encode(&dog).expect("embeddings")[0];
+        let cat_embedding = &model.encode(&cat).expect("embeddings")[0];
+        let apple_embedding = &model.encode(&apple).expect("embeddings")[0];
+        let dog_cat = compute_cosine_similarity(dog_embedding.to_vec(), cat_embedding.to_vec());
+        let dog_apple = compute_cosine_similarity(dog_embedding.to_vec(), apple_embedding.to_vec());
+        assert!(dog_cat > threshold);
+        assert!(dog_apple < threshold);
     }
 }
