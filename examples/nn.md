@@ -17,7 +17,7 @@ fn main() {
     println!("query vector: {} ", query_vector);
     // Kdtree using Euclidean distance
     let nn = CommonNearestNeighbour::KdTree.from_batch(&data, L2Dist).unwrap();
-    // Compute the 3 nearest points to the query vector
+    // Compute the nearest points to the query vector
     let nearest = nn.k_nearest(query_vector.view(), 1).unwrap();
     println!("Nearest: {:?}", nearest[0].0)
 }
