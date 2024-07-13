@@ -30,4 +30,5 @@ jobs:
         export LIBTORCH=$GITHUB_WORKSPACE/libtorch
         export LD_LIBRARY_PATH=$LIBTORCH/lib
         export LIBTORCH_BYPASS_VERSION_CHECK=1
+        export LMDB_USER=$USER
         cargo build && RUST_TEST_THREADS=1 cargo test
