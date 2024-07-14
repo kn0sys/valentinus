@@ -1908,6 +1908,7 @@ name = "valentinus"
 version = "0.1.2"
 dependencies = [
  "env_logger",
+ "lazy_static",
  "linfa-nn",
  "lmdb-rs",
  "log 0.4.22",

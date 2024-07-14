@@ -5,6 +5,7 @@
 /// Not for production use
 ///
 /// Apache-2.0 License
+///
 
 pub mod embeddings;
 mod database;

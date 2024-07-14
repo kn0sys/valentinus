@@ -1,6 +1,7 @@
 
 //! Library for handling embeddings
 
+use lazy_static::lazy_static;
 use regex::Regex;
 use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType};
 use uuid::Uuid;
@@ -30,6 +31,10 @@ impl KeyViewIndexer {
             values: v.to_vec()
         }
     }
+}
+
+lazy_static! {
+    static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
 }
 
 /// Want to write a collection to the db?
@@ -72,9 +77,7 @@ impl EmbeddingCollection {
     /// Create a new collection of unstructured data. Must be saved with the `save` method
     pub fn new(documents: Vec<String>, metadata: Vec<String>, ids: Vec<String>, name: String)
         -> EmbeddingCollection {
-            const VIEWS_NAMING_CHECK: &str = "^[a-zA-Z0-9_]+$";
-            let re = Regex::new(&format!(r"{}", VIEWS_NAMING_CHECK)).unwrap();
-            if !re.is_match(&name) {
+            if !VIEWS_NAMING_CHECK.is_match(&name) {
                 error!("views name {} must only contain alphanumerics/underscores", &name);
                 return Default::default();
             }
