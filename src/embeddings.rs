@@ -65,7 +65,7 @@ impl EmbeddingCollection {
             let db: DatabaseEnvironment= DatabaseEnvironment::open(TEST);
             let views_lookup: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
             let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup);
-            let view_indexer: KeyViewIndexer = bincode::deserialize(&views[..]).unwrap();
+            let view_indexer: KeyViewIndexer = bincode::deserialize(&views[..]).unwrap_or_default();
             if view_indexer.values.contains(&name) {
                 error!("view name must be unique");
                 return Default::default();
@@ -181,7 +181,7 @@ impl EmbeddingCollection {
         let b_key: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
         // get the current indexes
         let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
-        let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap();
+        let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
         let mut current_keys: Vec<String> = Vec::new();
         if !kv_index.values.is_empty() {
             for i in kv_index.values {
@@ -202,7 +202,7 @@ impl EmbeddingCollection {
         let b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
         // get the current indexes
         let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
-        let kv_index: KeyViewIndexer = bincode::deserialize(&&b_keys[..]).unwrap();
+        let kv_index: KeyViewIndexer = bincode::deserialize(&&b_keys[..]).unwrap_or_default();
         let mut current_keys: Vec<String> = Vec::new();
         if !kv_index.values.is_empty() {
             for i in kv_index.values {
