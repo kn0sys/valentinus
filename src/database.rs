@@ -37,7 +37,7 @@ pub struct DatabaseEnvironment {
 impl DatabaseEnvironment {
     /// Opens environment in specified path
     pub fn open(env: &str) -> Self {
-        const MAP_SIZE: u64  = 1 * 1024 * 1024 * 1024;
+        const MAP_SIZE: u64  = 1024 * 1024 * 1024;
         let mut user: String = match std::env::var("LMDB_USER") {
             Err(_) => String::new(),
             Ok(user) => user,
@@ -51,11 +51,10 @@ impl DatabaseEnvironment {
         let env: Environment = EnvBuilder::new()
             .map_size(MAP_SIZE)
             .open(format!("{}/{}", file_path, env), 0o777)
-            .expect(&format!("could not open LMDB at {}", file_path));
+            .unwrap_or_else(|_| panic!("could not open LMDB at {}", file_path));
         let default: Result<DbHandle, lmdb_rs::MdbError> = env.get_default_db(DbFlags::empty());
         if default.is_err() {
-            // this should never happen
-            panic!("LMDB failed to set default db");
+            panic!("could not set db handle")
         }
         let handle: DbHandle = default.unwrap();
         DatabaseEnvironment { env, handle }
@@ -76,19 +75,13 @@ impl DatabaseEnvironment {
         }
         let txn = new_txn.unwrap();
         {
-            let db: Database = txn.bind(&h);
+            let db: Database = txn.bind(h);
             let pair: Vec<(&Vec<u8>, &Vec<u8>)> = vec![(k, v)];
             for &(key, value) in pair.iter() {
-                match db.set(key, value) {
-                    Err(_) => error!("failed to commit"),
-                    Ok(_) => (),
-                }
+                db.set(key, value).unwrap_or_else(|_| error!("failed to set key: {:?}", k));
             }
         }
-        match txn.commit() {
-            Err(_) => error!("failed to commit!"),
-            Ok(_) => (),
-        }
+        txn.commit().unwrap()
     }
     /// Read key from the database. If it doesn't exist then
     /// 
@@ -108,8 +101,8 @@ impl DatabaseEnvironment {
             return Vec::new();
         }
         let reader: lmdb_rs::ReadonlyTransaction = get_reader.unwrap();
-        let db: Database = reader.bind(&h);
-        let value: Vec<u8> = db.get::<Vec<u8>>(k).unwrap_or(Vec::new());
+        let db: Database = reader.bind(h);
+        let value: Vec<u8> = db.get::<Vec<u8>>(k).unwrap_or_default();
         {
             if value.is_empty() {
                 error!("failed to read key {:?} from db", k)
@@ -131,13 +124,10 @@ impl DatabaseEnvironment {
         }
         let txn = new_txn.unwrap();
         {
-            let db = txn.bind(&h);
+            let db = txn.bind(h);
             db.del(k).unwrap_or_else(|_| error!("failed to delete"));
         }
-        match txn.commit() {
-            Err(_) => error!("failed to commit!"),
-            Ok(_) => (),
-        }
+        txn.commit().unwrap()
     }
 }
 
