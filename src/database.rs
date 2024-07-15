@@ -10,10 +10,9 @@ use lmdb::{
 };
 use lmdb_rs::Database;
 use log::{
-    error,
-    info,
+    error, info
 };
-
+use sysinfo::System;
 
 /// Test environment string for differentiating between dev and prod
 pub const TEST: &str = "test";
@@ -62,7 +61,7 @@ impl DatabaseEnvironment {
     /// Write a key/value pair to the database. It is not possible to
     /// 
     /// overwrite an existing key/value pair.
-    pub fn write(e: &Environment, h: &DbHandle, k: &Vec<u8>, v: &Vec<u8>) {
+    fn write(e: &Environment, h: &DbHandle, k: &Vec<u8>, v: &Vec<u8>) {
         info!("excecuting lmdb write");
         if k.is_empty() {
             error!("can't write empty key");
@@ -76,7 +75,7 @@ impl DatabaseEnvironment {
         let txn = new_txn.unwrap();
         {
             let db: Database = txn.bind(h);
-            let pair: Vec<(&Vec<u8>, &Vec<u8>)> = vec![(k, v)];
+            let pair: Vec<(&Vec<u8>, &Vec<u8>)> = vec![(&k, v)];
             for &(key, value) in pair.iter() {
                 db.set(key, value).unwrap_or_else(|_| error!("failed to set key: {:?}", k));
             }
@@ -102,13 +101,21 @@ impl DatabaseEnvironment {
         }
         let reader: lmdb_rs::ReadonlyTransaction = get_reader.unwrap();
         let db: Database = reader.bind(h);
-        let value: Vec<u8> = db.get::<Vec<u8>>(k).unwrap_or_default();
+        let mut result: Vec<u8> = Vec::new();
+        for num_writes in 0..usize::MAX {
+            let mut new_key: Vec<u8> = k.to_vec();
+            let mut key_count: Vec<u8> = (num_writes).to_be_bytes().to_vec();
+            new_key.append(&mut key_count);
+            let mut r = db.get::<Vec<u8>>(&new_key).unwrap_or_default();
+            if r.is_empty() { break; }
+            result.append(&mut r);
+        }   
         {
-            if value.is_empty() {
-                error!("failed to read key {:?} from db", k)
+            if result.is_empty() {
+                error!("failed to read key {:?} from db", k);
             }
         }
-        value
+        result
     }
     /// Deletes a key/value pair from the database
     pub fn delete(e: &Environment, h: &DbHandle, k: &Vec<u8>) {
@@ -123,11 +130,53 @@ impl DatabaseEnvironment {
             return;
         }
         let txn = new_txn.unwrap();
+        let get_reader = e.get_reader();
+        if get_reader.is_err() {
+            error!("failed to read key {:?} from db", k);
+        }
+        let reader: lmdb_rs::ReadonlyTransaction = get_reader.unwrap();
+        let db_reader: Database = reader.bind(h);
         {
             let db = txn.bind(h);
-            db.del(k).unwrap_or_else(|_| error!("failed to delete"));
+
+            for num_writes in 0..usize::MAX {
+                let mut new_key: Vec<u8> = k.to_vec();
+                let mut key_count: Vec<u8> = num_writes.to_be_bytes().to_vec();
+                new_key.append(&mut key_count);
+                let r = db_reader.get::<Vec<u8>>(&new_key).unwrap_or_default();
+                if r.is_empty() { break; }
+                db.del(&new_key).unwrap_or_else(|_| error!("failed to delete"));
+            }
         }
         txn.commit().unwrap()
+    }
+}
+
+/// Write chunks to the database. This function uses available memory
+/// 
+/// reduced three orders of magnitude.
+pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
+    let s = System::new_all();
+    let chunk_size = s.available_memory() / 1000;
+    let mut writes: usize = 0;
+    let mut index: usize = 0;
+    let mut key_counter: usize = 0;
+    let mut chunk: Vec<u8> = Vec::new();
+    loop {
+        while writes < chunk_size as usize {
+            chunk.push(v[index]);
+            if index == v.len() - 1 { break; }
+            index += 1;
+            writes += 1;
+        }
+        writes = 0; // reset chunks
+        let mut old_key: Vec<u8> = k.to_vec();
+        let mut append: Vec<u8> = (key_counter).to_be_bytes().to_vec();
+        old_key.append(&mut append);
+        DatabaseEnvironment::write(e, h, &old_key, &chunk);
+        key_counter += 1;
+        chunk = Default::default(); // empty chunk container for next write
+        if index == v.len() - 1 { break; }
     }
 }
 
@@ -138,15 +187,19 @@ mod tests {
 
     use super::*;
 
+    use rand::RngCore;
+
     #[test]
     fn environment_test() {
         let db = DatabaseEnvironment::open(TEST);
+        const DATA_SIZE: usize = 1000000000;
+        let mut data = vec![0u8; DATA_SIZE];
+        rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
-        let v = "test-value".as_bytes();
-        DatabaseEnvironment::write(&db.env, &db.handle, &Vec::from(k), &Vec::from(v));
-        let expected = Vec::from(v);
+        let expected = &data.to_vec();
+        write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
         let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
-        assert_eq!(expected, actual);
+        assert_eq!(expected.to_vec(), actual);
         DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));   
     }
 }

@@ -9,6 +9,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use log::*;
+use crate::database;
 use crate::database::*;
 use crate::ml::*;
 
@@ -97,7 +98,7 @@ impl EmbeddingCollection {
         let key = &self.key;
         let b_key = Vec::from(key.as_bytes());
         let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
-        DatabaseEnvironment::write(&db.env, &db.handle, &b_key, &collection);
+        database::write_chunks(&db.env, &db.handle, &b_key, &collection);
     }
     /// Fetch all known keys or views in the database.
     ///
@@ -193,7 +194,7 @@ impl EmbeddingCollection {
         let v_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let b_v_indexer: Vec<u8> = bincode::serialize(&v_indexer).unwrap();
         DatabaseEnvironment::delete(&db.env, &db.handle, &b_key);
-        DatabaseEnvironment::write(&db.env, &db.handle, &b_key, &b_v_indexer);
+        database::write_chunks(&db.env, &db.handle, &b_key, &b_v_indexer);
     }
     /// Sets the lists of keys in the database
     pub fn set_key_indexes(&self) {
@@ -202,7 +203,7 @@ impl EmbeddingCollection {
         let b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
         // get the current indexes
         let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
-        let kv_index: KeyViewIndexer = bincode::deserialize(&&b_keys[..]).unwrap_or_default();
+        let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
         let mut current_keys: Vec<String> = Vec::new();
         if !kv_index.values.is_empty() {
             for i in kv_index.values {
@@ -213,7 +214,7 @@ impl EmbeddingCollection {
         current_keys.push(String::from(&self.key));
         let k_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let b_k_indexer: Vec<u8> = bincode::serialize(&k_indexer).unwrap();
-        DatabaseEnvironment::write(&db.env, &db.handle, &b_key, &b_k_indexer);
+        database::write_chunks(&db.env, &db.handle, &b_key, &b_k_indexer);
     }
     /// Sets key-to-view lookups
     pub fn set_kv_index(&self) {
@@ -222,7 +223,7 @@ impl EmbeddingCollection {
         let b_kv_lookup_key: Vec<u8> = Vec::from(kv_lookup_key.as_bytes());
         let kv_lookup_value: String = String::from(&self.key);
         let b_v_indexer: Vec<u8> = Vec::from(kv_lookup_value.as_bytes());
-        DatabaseEnvironment::write(&db.env, &db.handle, &b_kv_lookup_key, &b_v_indexer);
+        database::write_chunks(&db.env, &db.handle, &b_kv_lookup_key, &b_v_indexer);
     }
 }
 
@@ -247,7 +248,7 @@ pub fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
         let key: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_kv_lookup);
         debug!("key: {:?}", key);
         let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &key);
-        let result: EmbeddingCollection = bincode::deserialize(&&collection[..]).unwrap();
+        let result: EmbeddingCollection = bincode::deserialize(&collection[..]).unwrap();
         result
     }
 }

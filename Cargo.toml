@@ -36,9 +36,11 @@ lmdb-rs        = "0.7.6"
 log            = "0.4"
 ndarray        = "0.15.6"
 ndarray-rand   = "0.14.0"
+rand           = "0.8.5"
 regex          = "1.10.5"
 rust-bert      = "0.22.0"
-serde          = { version = "1.0", features = ["derive"] } 
+serde          = { version = "1.0", features = ["derive"] }
+sysinfo        = "0.30.13" 
 uuid           = "1.10.0"
 
 [package.metadata.docs.rs]
