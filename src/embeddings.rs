@@ -177,7 +177,7 @@ impl EmbeddingCollection {
         self.embeddings = embeddings;
     }
     /// Sets the list of views in the database
-    pub fn set_view_indexes(&self) {
+    fn set_view_indexes(&self) {
         let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
         let b_key: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
         // get the current indexes
@@ -197,7 +197,7 @@ impl EmbeddingCollection {
         database::write_chunks(&db.env, &db.handle, &b_key, &b_v_indexer);
     }
     /// Sets the lists of keys in the database
-    pub fn set_key_indexes(&self) {
+    fn set_key_indexes(&self) {
         // set the keys indexer
         let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
         let b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
@@ -217,7 +217,7 @@ impl EmbeddingCollection {
         database::write_chunks(&db.env, &db.handle, &b_key, &b_k_indexer);
     }
     /// Sets key-to-view lookups
-    pub fn set_kv_index(&self) {
+    fn set_kv_index(&self) {
         let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
         let kv_lookup_key: String = format!("{}-{}", VALENTINUS_KEY, self.view);
         let b_kv_lookup_key: Vec<u8> = Vec::from(kv_lookup_key.as_bytes());
