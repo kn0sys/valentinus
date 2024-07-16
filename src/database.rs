@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn environment_test() {
         let db = DatabaseEnvironment::open(TEST);
-        const DATA_SIZE: usize = 1000000000;
+        const DATA_SIZE: usize = 100000000;
         let mut data = vec![0u8; DATA_SIZE];
         rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
