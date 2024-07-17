@@ -24,6 +24,10 @@ pub const VALENTINUS_VIEWS: &str = "views";
 pub const VALENTINUS_KEY: &str = "key";
 /// View lookup
 pub const VALENTINUS_VIEW: &str = "view";
+/// Ratio of map size to available memory is 20 percent
+const MAP_SIZE_MEMORY_RATIO: f32 = 0.2;
+/// Ratio of chunk size to available memory is 2 percent
+const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.1;
 
 /// The database environment for handling primary database operations.
 /// 
@@ -34,9 +38,19 @@ pub struct DatabaseEnvironment {
 }
 
 impl DatabaseEnvironment {
-    /// Opens environment in specified path
+    /// Opens environment in specified path. The map size defaults to 20 percent
+    /// 
+    /// of available memory and can be set via the `LMDB_MAP_SIZE` environment variable.
+    /// 
+    /// The path of the user can be set with `LMDB_USER`.
     pub fn open(env: &str) -> Self {
-        const MAP_SIZE: u64  = 1024 * 1024 * 1024;
+        let s = System::new_all();
+        let default_map_size: u64 = (s.available_memory() as f32 * MAP_SIZE_MEMORY_RATIO).floor() as u64;
+        let env_map_size: u64 = match std::env::var("LMDB_MAP_SIZE") {
+            Err(_) => default_map_size,
+            Ok(size) => size.parse::<u64>().unwrap_or(default_map_size),
+        };
+        info!("setting lmdb map size to: {}", env_map_size);
         let mut user: String = match std::env::var("LMDB_USER") {
             Err(_) => String::new(),
             Ok(user) => user,
@@ -48,7 +62,7 @@ impl DatabaseEnvironment {
         info!("excecuting lmdb open");
         let file_path: String = format!("/home/{}/.{}/", user, "valentinus");
         let env: Environment = EnvBuilder::new()
-            .map_size(MAP_SIZE)
+            .map_size(env_map_size)
             .open(format!("{}/{}", file_path, env), 0o777)
             .unwrap_or_else(|_| panic!("could not open LMDB at {}", file_path));
         let default: Result<DbHandle, lmdb_rs::MdbError> = env.get_default_db(DbFlags::empty());
@@ -152,12 +166,14 @@ impl DatabaseEnvironment {
     }
 }
 
-/// Write chunks to the database. This function uses available memory
+/// Write chunks to the database. This function uses 10 percent of the 
 /// 
-/// reduced three orders of magnitude.
+/// map_size. Setting the map_size to a low value will cause degraded
+///
+/// performance
 pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
     let s = System::new_all();
-    let chunk_size = s.available_memory() / 1000;
+    let chunk_size = s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO;
     let mut writes: usize = 0;
     let mut index: usize = 0;
     let mut key_counter: usize = 0;
