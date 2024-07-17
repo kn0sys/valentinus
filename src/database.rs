@@ -55,7 +55,7 @@ impl DatabaseEnvironment {
             Err(_) => String::new(),
             Ok(user) => user,
         };
-        if user == String::new() {
+        if user.is_empty() {
             user = String::from("user");
             error!("LMDB_USER environment variable not set, defaulting to \"user\"")
         }

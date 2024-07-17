@@ -239,14 +239,12 @@ pub fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
         let result: EmbeddingCollection = bincode::deserialize(&collection[..]).unwrap();
         result
     } else {
-        debug!("performing key view lookup");
+        info!("performing key view lookup");
         let db = DatabaseEnvironment::open(TEST);
         let s_view = view.unwrap_or_default();
         let kv_lookup: String = format!("{}-{}", VALENTINUS_KEY, s_view);
-        debug!("kv lookup: {:?}", kv_lookup);
         let b_kv_lookup: Vec<u8> = Vec::from(kv_lookup.as_bytes());
         let key: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_kv_lookup);
-        debug!("key: {:?}", key);
         let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &key);
         let result: EmbeddingCollection = bincode::deserialize(&collection[..]).unwrap();
         result

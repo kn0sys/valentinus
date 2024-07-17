@@ -10,6 +10,7 @@ proo-of-concept vector db built with lmdb bindings
 
 ### dependencies
 
+* bincode/serde  - serialize/deserialize
 * lmdb-rs        - database bindings
 * linfa          - machine learning
 * ndarray        - numpy equivalent

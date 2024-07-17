@@ -1,3 +1,0 @@
-[submodule "lmdb-rs"]
-	path = lmdb-rs
-	url = https://github.com/kn0sys/lmdb-rs
