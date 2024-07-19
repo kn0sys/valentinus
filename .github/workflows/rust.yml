@@ -30,4 +30,5 @@ jobs:
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
     - name: build and test
       run: |
+        export LMDB_USER=$USER
         cargo build && RUST_TEST_THREADS=1 cargo test
