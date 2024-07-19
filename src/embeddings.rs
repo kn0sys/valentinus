@@ -4,6 +4,8 @@
 //! ## Example
 //! 
 //! ```rust
+//! use valentinus::embeddings::*;
+//! 
 //! fn foo() {
 //!     const SLICE_DOCUMENTS: [&str; 10] = [
 //!             "The latest iPhone model comes with impressive features and a powerful camera.",
@@ -47,10 +49,10 @@
 //!     ec.save();
 //!     // query the collection
 //!     let query_string: String = String::from("Find me some delicious food!");
-//!     let result: String = EmbeddingCollection::query(query_string, String::from(&ec.view), None);
+//!     let result: String = EmbeddingCollection::query(query_string, String::from(ec.get_view()), None);
 //!     assert_eq!(expected_doc, result);
 //!     // remove collection from db
-//!     EmbeddingCollection::delete(String::from(&ec.view));
+//!     EmbeddingCollection::delete(String::from(ec.get_view()));
 //! }
 //! ```
 
@@ -279,6 +281,9 @@ impl EmbeddingCollection {
     pub fn get_key(&self) -> &String {
         &self.key
     }
+    pub fn get_view(&self) -> &String {
+        &self.view
+    }
     // embeddings setter
     pub fn set_embeddings(&mut self, embeddings: GeneratedEmbeddings) {
         self.embeddings = embeddings.v_f32;
@@ -398,7 +403,7 @@ mod tests {
             ids.push(format!("id{}", i));
         }
         let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-        let model_type = ModelType::AllMiniLmL6V2.value();
+        let model_type = ModelType::AllMiniLmL12V2.value();
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
         let expected_doc: String = String::from(&expected[3]);
@@ -409,10 +414,10 @@ mod tests {
         ec.save();
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
-        let result: String = EmbeddingCollection::query(query_string, String::from(&ec.view), None);
+        let result: String = EmbeddingCollection::query(query_string, String::from(ec.get_view()), None);
         assert_eq!(expected_doc, result);
         // remove collection from db
-        EmbeddingCollection::delete(String::from(&ec.view));
+        EmbeddingCollection::delete(String::from(ec.get_view()));
     }
 
     #[test]
@@ -435,13 +440,13 @@ mod tests {
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
         let related: Vec<String> = EmbeddingCollection::consine_query(
-            query_string.clone(), String::from(&ec.view), CosineThreshold::Related);
+            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related);
         let not_related: Vec<String> = EmbeddingCollection::consine_query(
-            query_string, String::from(&ec.view), CosineThreshold::Related);
+            query_string, String::from(ec.get_view()), CosineThreshold::Related);
         assert!(!related.is_empty());
         assert!(!not_related.is_empty());
         // remove collection from db
-        EmbeddingCollection::delete(String::from(&ec.view));
+        EmbeddingCollection::delete(String::from(ec.get_view()));
     }
 
 }

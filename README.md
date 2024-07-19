@@ -25,14 +25,14 @@ git clone https://github.com/kn0sys/valentinus && cd valentinus
 # tests
 
 * Note: all tests currently require the `all-Mini-LM-L6-v2_onnx` directory
-* Get the model.onnx and tokenizer.json from huggingface
+* Get the model.onnx and tokenizer.json from huggingface or [build them](https://huggingface.co/docs/optimum/en/exporters/onnx/usage_guides/export_a_model)
 
 ```bash
-mkdir all-Mini-LM-L6-v2_onnx \
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx \
-mv model.onnx all-Mini-LM-L6-v2_onnx/ \
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/tokenizer.json \
-mv tokenizer.json all-Mini-LM-L6-v2_onnx/ \
+mkdir all-Mini-LM-L6-v2_onnx &&
+wget https://huggingface.co/nigel-christian/all-Mini-LM-L6-v2-valentinus/resolve/main/model.onnx
+mv model.onnx all-Mini-LM-L6-v2_onnx/ &&
+wget https://huggingface.co/nigel-christian/all-Mini-LM-L6-v2-valentinus/resolve/main/tokenizer.json &&
+mv tokenizer.json all-Mini-LM-L6-v2_onnx/
 ```
 
 ### examples

@@ -22,10 +22,12 @@ jobs:
     - name: Install dependencies
       run: |
         mkdir all-Mini-LM-L6-v2_onnx
+        cd all-Mini-LM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
-        mv model.onnx all-Mini-LM-L6-v2_onnx/
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/tokenizer.json
-        mv tokenizer.json all-Mini-LM-L6-v2_onnx/
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/special_tokens_map.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
     - name: build and test
       run: |
         cargo build && RUST_TEST_THREADS=1 cargo test
