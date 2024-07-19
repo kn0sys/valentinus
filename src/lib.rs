@@ -10,3 +10,4 @@
 pub mod embeddings;
 mod database;
 mod ml;
+mod onnx;

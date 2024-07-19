@@ -3,7 +3,6 @@
 
 use lazy_static::lazy_static;
 use regex::Regex;
-use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType};
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -12,9 +11,25 @@ use log::*;
 use crate::database;
 use crate::database::*;
 use crate::ml::*;
+use crate::onnx::*;
 
 lazy_static! {
     static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum ModelType {
+    AllMiniLmL12V2,
+    AllMiniLmL6V2
+}
+
+impl ModelType {
+    pub fn value(&self) -> String {
+        match *self {
+            Self::AllMiniLmL12V2 => String::from("AllMiniLmL12V2"),
+            Self::AllMiniLmL6V2 => String::from("AllMiniLmL6V2")
+        }
+    }
 }
 
 /// Use to write the vector of keys and indexes
@@ -46,6 +61,12 @@ pub struct EmbeddingCollection {
     embeddings: Vec<Vec<f32>>,
     /// Genres mapped to their perspective document by index
     metadata: Vec<String>,
+    /// Path to onnx.model and tokenizer.json
+    model_path: String,
+    /// model type
+    model_type: String,
+    /// L2 normalization of the generated embeddings
+    norm: Vec<f32>,
     /// Ids for each document
     ids: Vec<String>,
     /// Key for the collection itself. Keys are recorded as `keys` as a `Vec<String>`
@@ -56,7 +77,8 @@ pub struct EmbeddingCollection {
 
 impl EmbeddingCollection {
     /// Create a new collection of unstructured data. Must be saved with the `save` method
-    pub fn new(documents: Vec<String>, metadata: Vec<String>, ids: Vec<String>, name: String)
+    pub fn new(documents: Vec<String>, metadata: Vec<String>, ids: Vec<String>, name: String,
+        model_type: String, model_path: String)
         -> EmbeddingCollection {
             if !VIEWS_NAMING_CHECK.is_match(&name) {
                 error!("views name {} must only contain alphanumerics/underscores", &name);
@@ -76,7 +98,7 @@ impl EmbeddingCollection {
             let key: String = format!("{}-{}", VALENTINUS_KEY, id);
             let view: String = format!("{}-{}", VALENTINUS_VIEW, name);
             EmbeddingCollection {
-                documents, embeddings: Vec::new(), metadata, ids, key, view
+                documents, norm: Vec::new(), embeddings: Vec::new(), metadata, ids, key, view, model_path, model_type,
             }
     }
     /// Save a collection to the database. Error if the key already exists.
@@ -86,11 +108,8 @@ impl EmbeddingCollection {
         self.set_kv_index();
         self.set_view_indexes();
         // set the embeddings
-        let model = SentenceEmbeddingsBuilder::remote(
-            SentenceEmbeddingsModelType::AllMiniLmL12V2
-        ).create_model().expect("model");
-        let data_output: Vec<Vec<f32>> = model.encode(&self.documents).expect("embeddings");
-        self.set_embeddings(data_output);
+        let embeddings: GeneratedEmbeddings = generate_embeddings(&self.model_path, &self.documents).unwrap_or_default();
+        self.set_embeddings(embeddings);
         let collection: Vec<u8> = bincode::serialize(&self).unwrap();
         if collection.is_empty() {
             error!("failed to save collection: {}", &self.key);
@@ -128,7 +147,7 @@ impl EmbeddingCollection {
         let s_metadata: String = metadata.unwrap_or_default();
         let mut removals = 0;
         // run metadata filter
-        if s_metadata != String::new() {
+        if !s_metadata.is_empty() {
             info!("running {} metadata filter", &s_metadata);
             for m in 0..collection.metadata.len() {
                 let real_index = m-removals;
@@ -138,12 +157,14 @@ impl EmbeddingCollection {
                 }
             }
         }
-        let model = SentenceEmbeddingsBuilder::remote(
-            SentenceEmbeddingsModelType::AllMiniLmL12V2
-        ).create_model().expect("model");
-        let qv = [query_string];
-        let qv_output = &model.encode(&qv).expect("embeddings")[0];
-        let nearest = compute_nearest(collection.embeddings, qv_output.to_vec());
+        let qv = vec![query_string];
+        let qv_output = generate_embeddings(&collection.model_path, &qv);
+        if qv_output.is_err() {
+            error!("failed to generate embeddings for query vector");
+            return Default::default();
+        }
+        let qv_vec: Vec<f32> = qv_output.unwrap().v_f32[0].to_vec();
+        let nearest = compute_nearest(collection.embeddings, qv_vec);
         String::from(&collection.documents[nearest])
     }
     /// Send one query string to a particular set of collections.
@@ -173,8 +194,9 @@ impl EmbeddingCollection {
         &self.key
     }
     // embeddings setter
-    pub fn set_embeddings(&mut self, embeddings: Vec<Vec<f32>>) {
-        self.embeddings = embeddings;
+    pub fn set_embeddings(&mut self, embeddings: GeneratedEmbeddings) {
+        self.embeddings = embeddings.v_f32;
+        self.norm = embeddings.norm;
     }
     /// Sets the list of views in the database
     fn set_view_indexes(&self) {
@@ -230,7 +252,7 @@ impl EmbeddingCollection {
 /// Look up a collection by key or view. If both key and view are passed,
 /// 
 /// then key lookup will override the latter.
-pub fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
+fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
     if key.is_some() {
         let db = DatabaseEnvironment::open(TEST);
         let s_key = key.unwrap_or_default();
@@ -283,22 +305,18 @@ mod tests {
 
     #[test]
     fn new_collection_test() {
-        let mut documents: Vec<String> = Vec::new();
-        for slice in 0..SLICE_DOCUMENTS.len() {
-            documents.push(String::from(SLICE_DOCUMENTS[slice]));
-        }
-        let mut metadata: Vec<String> = Vec::new();
-        for slice in 0..SLICE_METADATA.len() {
-            metadata.push(String::from(SLICE_METADATA[slice]));
-        }
+        let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
+        let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
         let mut ids: Vec<String> = Vec::new();
         for i in 0..documents.len() {
             ids.push(format!("id{}", i));
         }
+        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+        let model_type = ModelType::AllMiniLmL6V2.value();
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
         let expected_doc: String = String::from(&expected[3]);
-        let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name);
+        let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
         let created_docs: &Vec<String> = ec.get_documents();
         assert_eq!(expected, created_docs.to_vec());
         // save collection to db

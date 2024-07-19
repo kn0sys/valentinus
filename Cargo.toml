@@ -1,6 +1,6 @@
 [package]
 name = "valentinus"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 documentation = "https://docs.rs/valentinus"
@@ -8,7 +8,6 @@ description = "Proof-of-concept vector db built with LMDB bindings"
 repository = "https://github.com/kn0sys/valentinus"
 license = "Apache-2.0"
 readme = "README.md"
-build = "build.rs"
 keywords = [
     "nlp",
     "deep-learning",
@@ -22,9 +21,6 @@ name = "valentinus"
 path = "src/lib.rs"
 crate-type = ["lib"]
 
-[features]
-doc-only = ["rust-bert/doc-only"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -36,14 +32,12 @@ lmdb-rs        = "0.7.6"
 log            = "0.4"
 ndarray        = "0.15.6"
 ndarray-rand   = "0.14.0"
+ort            = "2.0.0-rc.4"
 regex          = "1.10.5"
-rust-bert      = "0.22.0"
 serde          = { version = "1.0", features = ["derive"] }
 sysinfo        = "0.30.13" 
-uuid           = "1.10.0"
+tokenizers     = { version = ">=0.13.4", default-features = false, features = [ "onig" ] }
+uuid           = {version = "1.10.0", features = [ "v4"]}
 
 [dev-dependencies]
 rand           = "0.8.5"
-
-[package.metadata.docs.rs]
-features = ["doc-only"]

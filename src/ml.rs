@@ -37,37 +37,32 @@ pub fn compute_nearest(data: Vec<Vec<f32>>, qv: Vec<f32>) -> usize {
     location.unwrap_or(0)
 }
 
-fn _normalize(x: ArrayView1<f32>) -> f32 {
+pub fn normalize(x: ArrayView1<f32>) -> f32 {
     x.dot(&x).sqrt()
 }
 
-/// Compute cosine similarity for two vectors
+/// Compute cosine similarity for two vectors. Let `qv` be the unprocessed query vector
+/// 
+/// and `cv` be the pre-processed collection value stored in the database with its norms.
 /// 
 /// Reference: https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/linear_algebra.html
-pub fn _compute_cosine_similarity(u: Vec<f32>, v: Vec<f32>) -> f32 {
-    let a1 = Array1::from_vec(u);
-    let a2 = Array1::from_vec(v);
-    let dot_product = a1.dot(&a2);
-    let a1_norm = _normalize(a1.view());
-    let a2_norm = _normalize(a2.view());
-    dot_product / (a1_norm * a2_norm)
+pub fn compute_cosine_similarity(qv: ArrayView1<f32>, cv: ArrayView1<f32>, cn: f32) -> f32 {
+    let dot_product = qv.dot(&cv);
+    let qv_norm = normalize(qv.view());
+    dot_product / (qv_norm * cn)
 }
 
 #[cfg(test)]
 mod tests {
 
-    use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType};
+    use crate::onnx::generate_embeddings;
 
     use super::*;
 
     #[test]
     fn compute_nearest_test() {
-        let qv = "I like pizza";
-        let model = SentenceEmbeddingsBuilder::remote(
-            SentenceEmbeddingsModelType::AllMiniLmL12V2
-        ).create_model().expect("model");
-    
-        let qv_sentence = [qv];
+        let qv = ["I like pizza"];
+        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
         let data_sentences = [
             "The canine barked loudly.",
             "The dog made a noisy bark.",
@@ -77,29 +72,30 @@ mod tests {
             "Water is made of two hyroden atoms and one oxygen atom.",
             "A triangle has 3 sides",
         ];
-    
-        let data_output = model.encode(&data_sentences).expect("embeddings");
-        let qv_output = &model.encode(&qv_sentence).expect("embeddings")[0];
-        let i_nearest = compute_nearest(data_output, qv_output.to_vec());
-
+        let query: Vec<String> = qv.iter().map(|s| String::from(*s)).collect();
+        let data: Vec<String> = data_sentences.iter().map(|s| String::from(*s)).collect();
+        let query_embeddings = generate_embeddings(&model_path, &query).unwrap_or_default();
+        let data_embeddings = generate_embeddings(&model_path, &data).unwrap_or_default();
+        let i_nearest = compute_nearest(data_embeddings.v_f32, query_embeddings.v_f32[0].to_vec());
         assert_eq!(data_sentences[i_nearest], data_sentences[2]);
     }
 
     #[test]
     fn cosine_similarity_test() {
+        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
         let threshold: f32 = 0.5;
-        let model = SentenceEmbeddingsBuilder::remote(
-            SentenceEmbeddingsModelType::AllMiniLmL12V2
-        ).create_model().expect("model");
-        let dog = ["dog"];
-        let cat = ["cat"];
-        let apple = ["apple"];
-        let dog_embedding = &model.encode(&dog).expect("embeddings")[0];
-        let cat_embedding = &model.encode(&cat).expect("embeddings")[0];
-        let apple_embedding = &model.encode(&apple).expect("embeddings")[0];
-        let dog_cat = _compute_cosine_similarity(dog_embedding.to_vec(), cat_embedding.to_vec());
-        let dog_apple = _compute_cosine_similarity(dog_embedding.to_vec(), apple_embedding.to_vec());
+        let dog = ["dog"].iter().map(|s| String::from(*s)).collect::<Vec<String>>();
+        let cat = ["cat"].iter().map(|s| String::from(*s)).collect::<Vec<String>>();
+        let car = ["fast cars"].iter().map(|s| String::from(*s)).collect::<Vec<String>>();
+        let mut e_dog = generate_embeddings(&model_path, &dog).unwrap_or_default();
+        let mut e_cat = generate_embeddings(&model_path, &cat).unwrap_or_default();
+        let mut e_car = generate_embeddings(&model_path, &car).unwrap_or_default();
+        let a_dog = Array::from(e_dog.v_f32.remove(0));
+        let a_cat = Array1::from_vec(e_cat.v_f32.remove(0));
+        let a_car = Array1::from_vec(e_car.v_f32.remove(0));
+        let dog_cat = compute_cosine_similarity(a_dog.view(), a_cat.view(), e_cat.norm[0]);
+        let dog_car = compute_cosine_similarity(a_dog.view(), a_car.view(), e_car.norm[0]);
         assert!(dog_cat > threshold);
-        assert!(dog_apple < threshold);
+        assert!(dog_car < threshold);
     }
 }
