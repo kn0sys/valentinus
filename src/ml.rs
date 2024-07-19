@@ -46,9 +46,11 @@ pub fn normalize(x: ArrayView1<f32>) -> f32 {
 /// and `cv` be the pre-processed collection value stored in the database with its norms.
 /// 
 /// Reference: https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/linear_algebra.html
-pub fn compute_cosine_similarity(qv: ArrayView1<f32>, cv: ArrayView1<f32>, cn: f32) -> f32 {
-    let dot_product = qv.dot(&cv);
-    let qv_norm = normalize(qv.view());
+pub fn compute_cosine_similarity(qv: Vec<f32>, cv: Vec<f32>, cn: f32) -> f32 {
+    let a1 = Array1::from(qv);
+    let a2 = Array1::from(cv);
+    let dot_product = a1.dot(&a2);
+    let qv_norm = normalize(a1.view());
     dot_product / (qv_norm * cn)
 }
 
@@ -86,16 +88,16 @@ mod tests {
         let threshold: f32 = 0.5;
         let dog = ["dog"].iter().map(|s| String::from(*s)).collect::<Vec<String>>();
         let cat = ["cat"].iter().map(|s| String::from(*s)).collect::<Vec<String>>();
-        let car = ["fast cars"].iter().map(|s| String::from(*s)).collect::<Vec<String>>();
+        let bike = ["bicycle"].iter().map(|s| String::from(*s)).collect::<Vec<String>>();
         let mut e_dog = generate_embeddings(&model_path, &dog).unwrap_or_default();
         let mut e_cat = generate_embeddings(&model_path, &cat).unwrap_or_default();
-        let mut e_car = generate_embeddings(&model_path, &car).unwrap_or_default();
-        let a_dog = Array::from(e_dog.v_f32.remove(0));
-        let a_cat = Array1::from_vec(e_cat.v_f32.remove(0));
-        let a_car = Array1::from_vec(e_car.v_f32.remove(0));
-        let dog_cat = compute_cosine_similarity(a_dog.view(), a_cat.view(), e_cat.norm[0]);
-        let dog_car = compute_cosine_similarity(a_dog.view(), a_car.view(), e_car.norm[0]);
+        let mut e_bike = generate_embeddings(&model_path, &bike).unwrap_or_default();
+        let a_dog = e_dog.v_f32.remove(0);
+        let a_cat = e_cat.v_f32.remove(0);
+        let a_car = e_bike.v_f32.remove(0);
+        let dog_cat = compute_cosine_similarity(a_dog.clone(), a_cat, e_cat.norm[0]);
+        let dog_bike = compute_cosine_similarity(a_dog, a_car, e_bike.norm[0]);
         assert!(dog_cat > threshold);
-        assert!(dog_car < threshold);
+        assert!(dog_bike < dog_cat);
     }
 }

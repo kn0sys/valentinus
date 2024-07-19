@@ -14,9 +14,4 @@ Cargo.lock
 *.pdb
 
 main.rs
-all-Mini-LM-L6-v2_onnx/config.json
-all-Mini-LM-L6-v2_onnx/model.onnx
-all-Mini-LM-L6-v2_onnx/special_tokens_map.json
-all-Mini-LM-L6-v2_onnx/tokenizer_config.json
-all-Mini-LM-L6-v2_onnx/tokenizer.json
-all-Mini-LM-L6-v2_onnx/vocab.txt
+all-Mini-LM-L6-v2_onnx/**

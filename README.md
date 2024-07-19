@@ -19,7 +19,20 @@ next generation vector db built with lmdb bindings
 ### getting started
 
 ```bash
-git clone https://github.com/kn0sys/valentinus
+git clone https://github.com/kn0sys/valentinus && cd valentinus
+```
+
+# tests
+
+* Note: all tests currently require the `all-Mini-LM-L6-v2_onnx` directory
+* Get the model.onnx and tokenizer.json from huggingface
+
+```bash
+mkdir all-Mini-LM-L6-v2_onnx \
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx \
+mv model.onnx all-Mini-LM-L6-v2_onnx/ \
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/tokenizer.json \
+mv tokenizer.json all-Mini-LM-L6-v2_onnx/ \
 ```
 
 ### examples

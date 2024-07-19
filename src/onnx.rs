@@ -47,7 +47,7 @@ pub fn generate_embeddings(model_path: &String, data: &Vec<String>) -> Result<Ge
             error!("failed to extract tensor");
             return Ok(Default::default())
         }
-        let u_tensor: Vec<f32> = tensor.unwrap().iter().map(|i| *i).collect::<Vec<f32>>();
+        let u_tensor: Vec<f32> = tensor.unwrap().iter().copied().collect::<Vec<f32>>();
         let mut norm_vec: Vec<f32> = Vec::new();
         for v in &u_tensor {
             norm_vec.push(*v);

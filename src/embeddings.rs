@@ -1,5 +1,59 @@
 
-//! Library for handling embeddings
+//! Library for handling embeddings.
+//! 
+//! ## Example
+//! 
+//! ```rust
+//! fn foo() {
+//!     const SLICE_DOCUMENTS: [&str; 10] = [
+//!             "The latest iPhone model comes with impressive features and a powerful camera.",
+//!             "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
+//!             "Einstein's theory of relativity revolutionized our understanding of space and time.",
+//!             "Traditional Italian pizza is famous for its thin crust, fresh ingredients, and wood-fired ovens.",
+//!             "The American Revolution had a profound impact on the birth of the United States as a nation.",
+//!             "Regular exercise and a balanced diet are essential for maintaining good physical health.",
+//!             "Leonardo da Vinci's Mona Lisa is considered one of the most iconic paintings in art history.",
+//!             "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
+//!             "Startup companies often face challenges in securing funding and scaling their operations.",
+//!             "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
+//!     ];
+//!     const  SLICE_METADATA: [&str; 10] = [
+//!             "technology",
+//!             "travel",
+//!             "science",
+//!             "food",
+//!             "history",
+//!             "fitness",
+//!             "art",
+//!             "climate change",
+//!             "business",
+//!             "music",
+//!     ];
+//!     let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
+//!     let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
+//!     let mut ids: Vec<String> = Vec::new();
+//!     for i in 0..documents.len() {
+//!         ids.push(format!("id{}", i));
+//!     }
+//!     let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+//!     let model_type = ModelType::AllMiniLmL6V2.value();
+//!     let name = String::from("test_collection");
+//!     let expected: Vec<String> = documents.clone();
+//!     let expected_doc: String = String::from(&expected[3]);
+//!     let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type,model_path);
+//!     let created_docs: &Vec<String> = ec.get_documents();
+//!     assert_eq!(expected, created_docs.to_vec());
+//!     // save collection to db
+//!     ec.save();
+//!     // query the collection
+//!     let query_string: String = String::from("Find me some delicious food!");
+//!     let result: String = EmbeddingCollection::query(query_string, String::from(&ec.view), None);
+//!     assert_eq!(expected_doc, result);
+//!     // remove collection from db
+//!     EmbeddingCollection::delete(String::from(&ec.view));
+//! }
+//! ```
+
 
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -15,6 +69,12 @@ use crate::onnx::*;
 
 lazy_static! {
     static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
+}
+
+#[derive(PartialEq)]
+pub enum CosineThreshold {
+    Related,
+    NotRelated,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -167,11 +227,37 @@ impl EmbeddingCollection {
         let nearest = compute_nearest(collection.embeddings, qv_vec);
         String::from(&collection.documents[nearest])
     }
-    /// Send one query string to a particular set of collections.
+    /// Send a consine similarity query on a collection against a query string.
     /// 
-    /// The name of the query view must be valid. It is possible
-    ///
-    /// to restrict an embeddings query by setting a valid metadata string.
+    /// The number of results will be returned based on the threshold, where `Related`
+    /// 
+    /// are positive values and `NotRelated ` positive values.
+    pub fn consine_query(query_string: String, view_name: String, threshold: CosineThreshold) -> Vec<String> {
+        info!("querying {} embedding collection", view_name);
+        let zero = 0.0;
+        let mut collection: EmbeddingCollection = find(None, Some(view_name));
+        let qv_string = vec![query_string];
+        let qv_output = generate_embeddings(&collection.model_path, &qv_string);
+        if qv_output.is_err() {
+            error!("failed to generate embeddings for query vector");
+            return Default::default();
+        }
+        let qv_vec: Vec<f32> = qv_output.unwrap().v_f32.remove(0);
+        let mut results: Vec<String> = Vec::new();
+        for e in 0..collection.norm.len() {
+            let cv = collection.embeddings.remove(0);
+            let cn = collection.norm[e];
+            let cosine = compute_cosine_similarity(qv_vec.clone(), cv, cn);
+            if threshold == CosineThreshold::Related && cosine > zero {
+                results.push(String::from(&collection.documents[e]));
+            }
+            if threshold == CosineThreshold::Related && cosine < zero {
+                results.push(String::from(&collection.documents[e]));
+            }
+        }
+        results
+    }
+    /// Delete a collection from the database
     pub fn delete(view_name: String) {
         info!("deleting {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name));
@@ -325,6 +411,35 @@ mod tests {
         let query_string: String = String::from("Find me some delicious food!");
         let result: String = EmbeddingCollection::query(query_string, String::from(&ec.view), None);
         assert_eq!(expected_doc, result);
+        // remove collection from db
+        EmbeddingCollection::delete(String::from(&ec.view));
+    }
+
+    #[test]
+    fn cosine_collection_test() {
+        let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
+        let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
+        let mut ids: Vec<String> = Vec::new();
+        for i in 0..documents.len() {
+            ids.push(format!("id{}", i));
+        }
+        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+        let model_type = ModelType::AllMiniLmL6V2.value();
+        let name = String::from("test_collection");
+        let expected: Vec<String> = documents.clone();
+        let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
+        let created_docs: &Vec<String> = ec.get_documents();
+        assert_eq!(expected, created_docs.to_vec());
+        // save collection to db
+        ec.save();
+        // query the collection
+        let query_string: String = String::from("Find me some delicious food!");
+        let related: Vec<String> = EmbeddingCollection::consine_query(
+            query_string.clone(), String::from(&ec.view), CosineThreshold::Related);
+        let not_related: Vec<String> = EmbeddingCollection::consine_query(
+            query_string, String::from(&ec.view), CosineThreshold::Related);
+        assert!(!related.is_empty());
+        assert!(!not_related.is_empty());
         // remove collection from db
         EmbeddingCollection::delete(String::from(&ec.view));
     }

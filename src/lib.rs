@@ -1,10 +1,8 @@
 /// # valentinus
 /// 
-/// Proof-of-concept vector db
+/// Next generation vector database.
 ///
-/// Not for production use
-///
-/// Apache-2.0 License
+/// Apache-2.0 License.
 ///
 
 pub mod embeddings;
