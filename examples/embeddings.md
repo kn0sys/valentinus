@@ -42,9 +42,9 @@ fn foo() {
     ec.save();
     // query the collection
     let query_string: String = String::from("Find me some delicious food!");
-    let result: String = EmbeddingCollection::query(query_string, String::from(&ec.view), None);
+    let result: String = EmbeddingCollection::query(query_string, String::from(ec.get_view()), None);
     assert_eq!(expected_doc, result);
     // remove collection from db
-    EmbeddingCollection::delete(String::from(&ec.view));
+    EmbeddingCollection::delete(String::from(ec.get_view()));
 }
 ```

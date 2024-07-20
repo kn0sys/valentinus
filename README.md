@@ -43,7 +43,7 @@ see [examples](./examples/embeddings.md)
 
 ### gpu 
 
-set the set the environment variable `VALENTINUS_GPU_MODE=1` to enable the 
+set the environment variable `VALENTINUS_GPU_MODE=1` to enable the 
 `CUDAExecutionProvider`
 
 ### reference
