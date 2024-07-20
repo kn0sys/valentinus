@@ -264,7 +264,7 @@ impl EmbeddingCollection {
             if threshold == CosineThreshold::Related && cosine > zero {
                 results.push(String::from(&collection.documents[e]));
             }
-            if threshold == CosineThreshold::Related && cosine < zero {
+            if threshold == CosineThreshold::NotRelated && cosine < zero {
                 results.push(String::from(&collection.documents[e]));
             }
         }
