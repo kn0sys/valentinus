@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 
 //! Library for handling embeddings.
 //! 
@@ -64,28 +65,32 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use log::*;
-use crate::database;
-use crate::database::*;
-use crate::ml::*;
-use crate::onnx::*;
+use crate::{ database::*, ml::*, onnx::* };
 
 lazy_static! {
     static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
 }
 
+/// Used for `cosine_similarity_query` result filtering .
 #[derive(PartialEq)]
 pub enum CosineThreshold {
+    /// Positive values
     Related,
+    /// Negative values
     NotRelated,
 }
 
+/// Identifier for model used with the collection.
 #[derive(Debug, Deserialize, Serialize)]
 pub enum ModelType {
+    /// AllMiniLmL12V2 model
     AllMiniLmL12V2,
+    /// AllMiniLmL6V2 model
     AllMiniLmL6V2
 }
 
 impl ModelType {
+    /// Return `ModelType` as a string value.
     pub fn value(&self) -> String {
         match *self {
             Self::AllMiniLmL12V2 => String::from("AllMiniLmL12V2"),
@@ -101,6 +106,7 @@ pub struct KeyViewIndexer {
 }
 
 impl KeyViewIndexer {
+    /// Used to create a new indexer.
     fn new(v: &[String]) -> KeyViewIndexer {
         KeyViewIndexer {
             values: v.to_vec()
@@ -137,6 +143,7 @@ pub struct EmbeddingCollection {
     view: String
 }
 
+
 impl EmbeddingCollection {
     /// Create a new collection of unstructured data. Must be saved with the `save` method
     pub fn new(documents: Vec<String>, metadata: Vec<String>, ids: Vec<String>, name: String,
@@ -164,6 +171,8 @@ impl EmbeddingCollection {
             }
     }
     /// Save a collection to the database. Error if the key already exists.
+    /// 
+    /// Set `gpu` to true to enable the `CUDAExecutionProver`.
     pub fn save(&mut self) {
         info!("saving new embedding collection: {}", self.view);
         self.set_key_indexes();
@@ -179,7 +188,7 @@ impl EmbeddingCollection {
         let key = &self.key;
         let b_key = Vec::from(key.as_bytes());
         let db: DatabaseEnvironment = DatabaseEnvironment::open(TEST);
-        database::write_chunks(&db.env, &db.handle, &b_key, &collection);
+        write_chunks(&db.env, &db.handle, &b_key, &collection);
     }
     /// Fetch all known keys or views in the database.
     ///
@@ -203,6 +212,8 @@ impl EmbeddingCollection {
     /// The name of the query view must be valid. It is possible
     ///
     /// to restrict an embeddings query by setting a valid metadata string.
+    /// 
+    /// Set `gpu` to true to enable the `CUDAExecutionProver`.
     pub fn query(query_string: String, view_name: String, metadata: Option<String>) -> String {
         info!("querying {} embedding collection", view_name);
         let mut collection: EmbeddingCollection = find(None, Some(view_name));
@@ -233,7 +244,7 @@ impl EmbeddingCollection {
     /// 
     /// The number of results will be returned based on the threshold, where `Related`
     /// 
-    /// are positive values and `NotRelated ` positive values.
+    /// are positive values and `NotRelated ` negative values.
     pub fn consine_query(query_string: String, view_name: String, threshold: CosineThreshold) -> Vec<String> {
         info!("querying {} embedding collection", view_name);
         let zero = 0.0;
@@ -268,23 +279,27 @@ impl EmbeddingCollection {
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
         DatabaseEnvironment::delete(&db.env, &db.handle, &b_key);
     }
-    // getters
+    /// Getter for documents
     pub fn get_documents(&self) -> &Vec<String> {
         &self.documents
     }
+    /// Getter for metadata
     pub fn get_genres(&self) -> &Vec<String> {
         &self.metadata
     }
+    /// Getter for ids
     pub fn get_ids(&self) -> &Vec<String> {
         &self.ids
     }
+    /// Getter for key
     pub fn get_key(&self) -> &String {
         &self.key
     }
+    /// Getter for view
     pub fn get_view(&self) -> &String {
         &self.view
     }
-    // embeddings setter
+    /// Setter for embeddings
     pub fn set_embeddings(&mut self, embeddings: GeneratedEmbeddings) {
         self.embeddings = embeddings.v_f32;
         self.norm = embeddings.norm;
@@ -307,7 +322,7 @@ impl EmbeddingCollection {
         let v_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let b_v_indexer: Vec<u8> = bincode::serialize(&v_indexer).unwrap();
         DatabaseEnvironment::delete(&db.env, &db.handle, &b_key);
-        database::write_chunks(&db.env, &db.handle, &b_key, &b_v_indexer);
+        write_chunks(&db.env, &db.handle, &b_key, &b_v_indexer);
     }
     /// Sets the lists of keys in the database
     fn set_key_indexes(&self) {
@@ -327,7 +342,7 @@ impl EmbeddingCollection {
         current_keys.push(String::from(&self.key));
         let k_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let b_k_indexer: Vec<u8> = bincode::serialize(&k_indexer).unwrap();
-        database::write_chunks(&db.env, &db.handle, &b_key, &b_k_indexer);
+        write_chunks(&db.env, &db.handle, &b_key, &b_k_indexer);
     }
     /// Sets key-to-view lookups
     fn set_kv_index(&self) {
@@ -336,7 +351,7 @@ impl EmbeddingCollection {
         let b_kv_lookup_key: Vec<u8> = Vec::from(kv_lookup_key.as_bytes());
         let kv_lookup_value: String = String::from(&self.key);
         let b_v_indexer: Vec<u8> = Vec::from(kv_lookup_value.as_bytes());
-        database::write_chunks(&db.env, &db.handle, &b_kv_lookup_key, &b_v_indexer);
+        write_chunks(&db.env, &db.handle, &b_kv_lookup_key, &b_v_indexer);
     }
 }
 

@@ -1,8 +1,12 @@
+#![deny(missing_docs)]
 
 use ndarray::*;
-use ort::CPUExecutionProvider;
-use ort::GraphOptimizationLevel;
-use ort::Session;
+use ort::{ 
+    CUDAExecutionProvider,
+    CPUExecutionProvider,
+    GraphOptimizationLevel, 
+    Session 
+};
 use tokenizers::Tokenizer;
 
 use log::*;
@@ -22,11 +26,22 @@ pub fn generate_embeddings(model_path: &String, data: &Vec<String>) -> Result<Ge
     info!("creating model from {}", model_path);
     let mut embeddings_result: Vec<Vec<f32>> = Vec::new();
     let mut norm_result: Vec<f32> = Vec::new();
-    // Create the ONNX Runtime environment, enabling CPU execution providers for all sessions created in this process.
-	ort::init()
+    // Create the ONNX Runtime environment, enabling CPU/GPU execution providers for all sessions created in this process.
+    let gpu: String = match std::env::var("VALENTINUS_GPU_MODE") {
+        Err(_) => String::from("0"),
+        Ok(gpu) => gpu,
+    };
+    if gpu == *"1" {
+        ort::init()
+		.with_name("valentinus")
+		.with_execution_providers([CUDAExecutionProvider::default().build()])
+		.commit().unwrap();
+    } else {
+        ort::init()
 		.with_name("valentinus")
 		.with_execution_providers([CPUExecutionProvider::default().build()])
 		.commit().unwrap();
+    }
 	// Load our model
 	let session = Session::builder().unwrap()
 		.with_optimization_level(GraphOptimizationLevel::Level1)?

@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+
 //! Primary LMDB interface for read, write, delete etc.
 
 extern crate lmdb_rs as lmdb;
@@ -37,6 +39,7 @@ pub struct DatabaseEnvironment {
     pub handle: DbHandle,
 }
 
+/// LMDB implementation.
 impl DatabaseEnvironment {
     /// Opens environment in specified path. The map size defaults to 20 percent
     /// 
@@ -51,14 +54,11 @@ impl DatabaseEnvironment {
             Ok(size) => size.parse::<u64>().unwrap_or(default_map_size),
         };
         info!("setting lmdb map size to: {}", env_map_size);
-        let mut user: String = match std::env::var("LMDB_USER") {
-            Err(_) => String::new(),
+        let user: String = match std::env::var("LMDB_USER") {
+            Err(_) => std::env::var("USER").unwrap_or(String::from("user")),
             Ok(user) => user,
         };
-        if user.is_empty() {
-            user = String::from("user");
-            error!("LMDB_USER environment variable not set, defaulting to \"user\"")
-        }
+        info!("$LMDB_USER={}", user);
         info!("excecuting lmdb open");
         let file_path: String = format!("/home/{}/.{}/", user, "valentinus");
         let env: Environment = EnvBuilder::new()
@@ -166,11 +166,11 @@ impl DatabaseEnvironment {
     }
 }
 
-/// Write chunks to the database. This function uses 10 percent of the 
+/// Write chunks to the database. This function uses twenty percent
 /// 
-/// map_size. Setting the map_size to a low value will cause degraded
-///
-/// performance
+/// of the available memory. Setting the map_size to a low value 
+/// 
+/// will cause degraded performance.
 pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
     let s = System::new_all();
     let chunk_size = s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO;

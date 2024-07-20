@@ -41,6 +41,11 @@ wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/
 
 see [examples](./examples/embeddings.md)
 
+### gpu 
+
+set the set the environment variable `VALENTINUS_GPU_MODE=1` to enable the 
+`CUDAExecutionProvider`
+
 ### reference
 
 [inspired by this chromadb python tutorial](https://realpython.com/chromadb-vector-database/#what-is-a-vector-database)

@@ -1,10 +1,10 @@
 [package]
 name = "valentinus"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 documentation = "https://docs.rs/valentinus"
-description = "Proof-of-concept vector db built with LMDB bindings"
+description = "Next generation vector database built with LMDB bindings"
 repository = "https://github.com/kn0sys/valentinus"
 license = "Apache-2.0"
 readme = "README.md"
@@ -37,7 +37,7 @@ regex          = "1.10.5"
 serde          = { version = "1.0", features = ["derive"] }
 sysinfo        = "0.30.13" 
 tokenizers     = { version = ">=0.13.4", default-features = false, features = [ "onig" ] }
-uuid           = {version = "1.10.0", features = [ "v4"]}
+uuid           = { version = "1.10.0", features = [ "v4"] }
 
 [dev-dependencies]
 rand           = "0.8.5"

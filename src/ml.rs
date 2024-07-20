@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 
 //! Machine learning algorithms
 
@@ -37,6 +38,7 @@ pub fn compute_nearest(data: Vec<Vec<f32>>, qv: Vec<f32>) -> usize {
     location.unwrap_or(0)
 }
 
+/// L2 norm
 pub fn normalize(x: ArrayView1<f32>) -> f32 {
     x.dot(&x).sqrt()
 }
