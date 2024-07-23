@@ -42,9 +42,9 @@ fn foo() {
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
         let related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related);
+            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related, 1);
         let not_related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string, String::from(ec.get_view()), CosineThreshold::NotRelated);
+            query_string, String::from(ec.get_view()), CosineThreshold::NotRelated,1 );
         assert!(!related.is_empty());
         assert!(!not_related.is_empty());
         // remove collection from db

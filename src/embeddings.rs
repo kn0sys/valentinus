@@ -50,9 +50,9 @@
 //! // query the collection
 //! let query_string: String = String::from("Find me some delicious food!");
 //! let related: Vec<String> = EmbeddingCollection::cosine_query(
-//!    query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related);
+//!    query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related, 1);
 //! let not_related: Vec<String> = EmbeddingCollection::cosine_query(
-//!    query_string, String::from(ec.get_view()), CosineThreshold::NotRelated);
+//!    query_string, String::from(ec.get_view()), CosineThreshold::NotRelated, 1);
 //! assert!(!related.is_empty());
 //! assert!(!not_related.is_empty());
 //! // remove collection from db
@@ -215,7 +215,11 @@ impl EmbeddingCollection {
     /// The number of results will be returned based on the threshold, where `Related`
     /// 
     /// are positive values and `NotRelated ` negative values.
-    pub fn cosine_query(query_string: String, view_name: String, ct: CosineThreshold) -> Vec<String> {
+    pub fn cosine_query(query_string: String, view_name: String, ct: CosineThreshold, num_results: usize) -> Vec<String> {
+        if num_results == 0 {
+            error!("number of results must be greater than zero");
+            return Default::default();
+        }
         info!("querying {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name));
         let qv_string = vec![query_string];
@@ -240,7 +244,7 @@ impl EmbeddingCollection {
                 results.push(String::from(sentence));
             }
         }
-        results
+        if results.len() < num_results { results } else { results[0..num_results].to_vec() }
     }
     /// Delete a collection from the database
     pub fn delete(view_name: String) {
@@ -400,11 +404,11 @@ mod tests {
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
         let related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related);
+            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related, 2);
         let not_related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string, String::from(ec.get_view()), CosineThreshold::NotRelated);
-        assert!(!related.is_empty());
-        assert!(!not_related.is_empty());
+            query_string, String::from(ec.get_view()), CosineThreshold::NotRelated, 1);
+        assert!(related.len() == 2);
+        assert!(not_related.len() == 1);
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }
