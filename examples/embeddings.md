@@ -43,30 +43,30 @@ fn foo() {
         ec.save();
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
-        let related: Vec<String> = EmbeddingCollection::cosine_query(
+        let related: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string.clone(),
             String::from(ec.get_view()),
             CosineThreshold::Related,
             3,
             Some(String::from("food")),
         );
-        let not_related: Vec<String> = EmbeddingCollection::cosine_query(
+        let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string.clone(),
             String::from(ec.get_view()),
             CosineThreshold::NotRelated,
             1,
             None,
         );
-        let all: Vec<String> = EmbeddingCollection::cosine_query(
+        let all: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string,
             String::from(ec.get_view()),
             CosineThreshold::Neutral,
             0,
             None,
         );
-        assert!(related.len() == 2);
-        assert!(not_related.len() == 1);
-        assert!(all.len() == SLICE_DOCUMENTS.len());
+        assert!(related.get_docs().len() == 2);
+        assert!(not_related.get_docs().len() == 1);
+        assert!(all.get_docs().len() == SLICE_DOCUMENTS.len());
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
 }

@@ -51,30 +51,30 @@
 //! ec.save();
 //! // query the collection
 //! let query_string: String = String::from("Find me some delicious food!");
-//! let related: Vec<String> = EmbeddingCollection::cosine_query(
+//! let related: CosineQueryResult = EmbeddingCollection::cosine_query(
 //!    query_string.clone(),
 //!    String::from(ec.get_view()),
 //!    CosineThreshold::Related,
 //!    3,
 //!    Some(String::from("food")),
 //! );
-//! let not_related: Vec<String> = EmbeddingCollection::cosine_query(
+//! let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
 //!    query_string.clone(),
 //!    String::from(ec.get_view()),
 //!    CosineThreshold::NotRelated,
 //!    1,
 //!    None,
 //! );
-//! let all: Vec<String> = EmbeddingCollection::cosine_query(
+//! let all: CosineQueryResult = EmbeddingCollection::cosine_query(
 //!    query_string,
 //!    String::from(ec.get_view()),
 //!    CosineThreshold::Neutral,
 //!    0,
 //!    None,
 //! );
-//! assert!(related.len() == 2);
-//! assert!(not_related.len() == 1);
-//! assert!(all.len() == SLICE_DOCUMENTS.len());
+//! assert!(related.get_docs().len() == 2);
+//! assert!(not_related.get_docs().len() == 1);
+//! assert!(all.get_docs().len() == SLICE_DOCUMENTS.len());
 //! }
 //! ```
 
@@ -133,6 +133,31 @@ impl KeyViewIndexer {
     /// Used to create a new indexer.
     fn new(v: &[String]) -> KeyViewIndexer {
         KeyViewIndexer { values: v.to_vec() }
+    }
+}
+
+/// Container for the `cosine_query` results
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct CosineQueryResult {
+    documents: Vec<String>,
+    similarities: Vec<f32>,
+}
+
+impl CosineQueryResult {
+    /// Used to create a result from `cosine_query`.
+    pub fn create(documents: Vec<String>, similarities: Vec<f32>) -> CosineQueryResult {
+        CosineQueryResult {
+            documents,
+            similarities,
+        }
+    }
+    /// Get documents from a query result.
+    pub fn get_docs(&self) -> &Vec<String> {
+        &self.documents
+    }
+    /// Get similarities from a query result.
+    pub fn get_similarities(&self) -> &Vec<f32> {
+        &self.similarities
     }
 }
 
@@ -246,16 +271,16 @@ impl EmbeddingCollection {
     ///
     /// The number of results will be returned based on the threshold, where `Related`
     ///
-    /// are positive values and `NotRelated ` negative values. Setting `num_results=0` will
-    /// 
-    /// return all results. An optional `metadatastring` can be set to further restrict the query.
+    /// are positive values and `NotRelated` negative values. Setting `num_results=0`,
+    ///
+    /// `CosineThreshold::Neutral` and metadata `None` will return all results.
     pub fn cosine_query(
         query_string: String,
         view_name: String,
         ct: CosineThreshold,
         num_results: usize,
         metadata: Option<String>,
-    ) -> Vec<String> {
+    ) -> CosineQueryResult {
         let filter: bool = metadata.is_some();
         info!("querying {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name));
@@ -269,7 +294,8 @@ impl EmbeddingCollection {
         let cv = collection.embeddings;
         let docs = collection.documents;
         info!("calculating cosine similarity");
-        let mut results: Vec<String> = Vec::new();
+        let mut r_docs: Vec<String> = Vec::new();
+        let mut r_sims: Vec<f32> = Vec::new();
         let query = qv.index_axis(Axis(0), 0);
         let meta_filter: String = metadata.unwrap_or_default();
         for (cv, sentence) in cv.axis_iter(Axis(0)).zip(docs.iter()) {
@@ -277,17 +303,22 @@ impl EmbeddingCollection {
             if !filter || collection.metadata[index.unwrap_or_default()] == meta_filter {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
-                if (ct == CosineThreshold::Related && dot_product > 0.0 ) 
+                if (ct == CosineThreshold::Related && dot_product > 0.0)
                     || (ct == CosineThreshold::NotRelated && dot_product < 0.0)
-                    || ct == CosineThreshold::Neutral {
-                    results.push(String::from(sentence));
+                    || ct == CosineThreshold::Neutral
+                {
+                    r_docs.push(String::from(sentence));
+                    r_sims.push(dot_product);
                 }
             }
         }
-        if results.len() < num_results || num_results == 0 {
-            results
+        if r_docs.len() < num_results || num_results == 0 {
+            CosineQueryResult::create(r_docs, r_sims)
         } else {
-            results[0..num_results].to_vec()
+            CosineQueryResult::create(
+                r_docs[0..num_results].to_vec(),
+                r_sims[0..num_results].to_vec(),
+            )
         }
     }
     /// Delete a collection from the database
@@ -427,7 +458,7 @@ mod tests {
         "climate change",
         "business",
         "music",
-        "food"
+        "food",
     ];
 
     #[test]
@@ -450,30 +481,30 @@ mod tests {
         ec.save();
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
-        let related: Vec<String> = EmbeddingCollection::cosine_query(
+        let related: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string.clone(),
             String::from(ec.get_view()),
             CosineThreshold::Related,
             3,
             Some(String::from("food")),
         );
-        let not_related: Vec<String> = EmbeddingCollection::cosine_query(
+        let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string.clone(),
             String::from(ec.get_view()),
             CosineThreshold::NotRelated,
             1,
             None,
         );
-        let all: Vec<String> = EmbeddingCollection::cosine_query(
+        let all: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string,
             String::from(ec.get_view()),
             CosineThreshold::Neutral,
             0,
             None,
         );
-        assert!(related.len() == 2);
-        assert!(not_related.len() == 1);
-        assert!(all.len() == SLICE_DOCUMENTS.len());
+        assert!(related.get_docs().len() == 2);
+        assert!(not_related.get_docs().len() == 1);
+        assert!(all.get_docs().len() == SLICE_DOCUMENTS.len());
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }
