@@ -25,26 +25,29 @@ fn foo() {
             "music",
     ];
     let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
-    let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
-    let mut ids: Vec<String> = Vec::new();
-    for i in 0..documents.len() {
-        ids.push(format!("id{}", i));
-    }
-    let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-    let model_type = ModelType::AllMiniLmL6V2.value();
-    let name = String::from("test_collection");
-    let expected: Vec<String> = documents.clone();
-    let expected_doc: String = String::from(&expected[3]);
-    let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type,model_path);
-    let created_docs: &Vec<String> = ec.get_documents();
-    assert_eq!(expected, created_docs.to_vec());
-    // save collection to db
-    ec.save();
-    // query the collection
-    let query_string: String = String::from("Find me some delicious food!");
-    let result: String = EmbeddingCollection::query(query_string, String::from(ec.get_view()), None);
-    assert_eq!(expected_doc, result);
-    // remove collection from db
-    EmbeddingCollection::delete(String::from(ec.get_view()));
+        let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
+        let mut ids: Vec<String> = Vec::new();
+        for i in 0..documents.len() {
+            ids.push(format!("id{}", i));
+        }
+        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+        let model_type = ModelType::AllMiniLmL6V2.value();
+        let name = String::from("test_collection");
+        let expected: Vec<String> = documents.clone();
+        let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
+        let created_docs: &Vec<String> = ec.get_documents();
+        assert_eq!(expected, created_docs.to_vec());
+        // save collection to db
+        ec.save();
+        // query the collection
+        let query_string: String = String::from("Find me some delicious food!");
+        let related: Vec<String> = EmbeddingCollection::cosine_query(
+            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related);
+        let not_related: Vec<String> = EmbeddingCollection::cosine_query(
+            query_string, String::from(ec.get_view()), CosineThreshold::NotRelated);
+        assert!(!related.is_empty());
+        assert!(!not_related.is_empty());
+        // remove collection from db
+        EmbeddingCollection::delete(String::from(ec.get_view()));
 }
 ```

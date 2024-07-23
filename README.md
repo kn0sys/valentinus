@@ -12,7 +12,6 @@ next generation vector db built with lmdb bindings
 
 * bincode/serde  - serialize/deserialize
 * lmdb-rs        - database bindings
-* linfa          - machine learning
 * ndarray        - numpy equivalent
 * ort/onnx       - embeddings
 
@@ -40,11 +39,6 @@ wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/
 ### examples
 
 see [examples](./examples/embeddings.md)
-
-### gpu 
-
-set the environment variable `VALENTINUS_GPU_MODE=1` to enable the 
-`CUDAExecutionProvider`
 
 ### reference
 

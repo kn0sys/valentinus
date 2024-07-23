@@ -1,77 +1,59 @@
 #![deny(missing_docs)]
 
 use ndarray::*;
-use ort::{ 
-    CUDAExecutionProvider,
-    CPUExecutionProvider,
-    GraphOptimizationLevel, 
-    Session 
-};
+use ort::{CUDAExecutionProvider, GraphOptimizationLevel, Session};
 use tokenizers::Tokenizer;
 
 use log::*;
-use crate::ml::*;
-
-/// Use to store embedding in the database with their
-/// 
-/// mutations and their normalization.
-#[derive(Debug, Default)]
-pub struct GeneratedEmbeddings {
-   pub v_f32: Vec<Vec<f32>>,
-   pub norm: Vec<f32>,
-}
 
 /// ONNX Embeddings generator
-pub fn generate_embeddings(model_path: &String, data: &Vec<String>) -> Result<GeneratedEmbeddings, ort::Error> {
+pub fn generate_embeddings(
+    model_path: &String,
+    data: &Vec<String>,
+) -> Result<Array2<f32>, ort::Error> {
     info!("creating model from {}", model_path);
-    let mut embeddings_result: Vec<Vec<f32>> = Vec::new();
-    let mut norm_result: Vec<f32> = Vec::new();
     // Create the ONNX Runtime environment, enabling CPU/GPU execution providers for all sessions created in this process.
-    let gpu: String = match std::env::var("VALENTINUS_GPU_MODE") {
-        Err(_) => String::from("0"),
-        Ok(gpu) => gpu,
-    };
-    if gpu == *"1" {
-        ort::init()
-		.with_name("valentinus")
-		.with_execution_providers([CUDAExecutionProvider::default().build()])
-		.commit().unwrap();
-    } else {
-        ort::init()
-		.with_name("valentinus")
-		.with_execution_providers([CPUExecutionProvider::default().build()])
-		.commit().unwrap();
-    }
-	// Load our model
-	let session = Session::builder().unwrap()
-		.with_optimization_level(GraphOptimizationLevel::Level1)?
-		.with_intra_threads(1)?
-		.commit_from_file(format!("{}/model.onnx", model_path))?;
+    ort::init()
+        .with_name("valentinus")
+        .with_execution_providers([CUDAExecutionProvider::default().build()])
+        .commit()
+        .unwrap();
+    // Load our model
+    let session = Session::builder()
+        .unwrap()
+        .with_optimization_level(GraphOptimizationLevel::Level1)?
+        .with_intra_threads(1)?
+        .commit_from_file(format!("{}/model.onnx", model_path))?;
     let tokenizer = Tokenizer::from_file(format!("{}/tokenizer.json", model_path))?;
-    for v in data {
-        let tokens = tokenizer.encode(String::from(v), false)?;
-        let mask = tokens.get_attention_mask().iter().map(|i| *i as i64).collect::<Vec<i64>>();
-        let ids = tokens.get_ids().iter().map(|i| *i as i64).collect::<Vec<i64>>();
-        let a_ids = Array1::from_vec(ids);
-        let a_mask = Array1::from_vec(mask);
-        let input_ids = a_ids.view().insert_axis(Axis(0));
-        let input_mask = a_mask.view().insert_axis(Axis(0));
-        let outputs = session.run(ort::inputs![input_ids, input_mask]?)?;
-        let tensor = outputs[1].try_extract_tensor::<f32>();
-        if tensor.is_err() {
-            error!("failed to extract tensor");
-            return Ok(Default::default())
-        }
-        let u_tensor: Vec<f32> = tensor.unwrap().iter().copied().collect::<Vec<f32>>();
-        let mut norm_vec: Vec<f32> = Vec::new();
-        for v in &u_tensor {
-            norm_vec.push(*v);
-        }
-        embeddings_result.push(u_tensor);
-        let norm: f32 = normalize(Array::from_vec(norm_vec).view());
-        norm_result.push(norm);
-    }
-    let result: GeneratedEmbeddings  = GeneratedEmbeddings { v_f32: embeddings_result, norm: norm_result };
-    Ok(result)
 
+    // Encode our input strings. `encode_batch` will pad each input to be the same length.
+    let encodings = tokenizer.encode_batch(data.clone(), false)?;
+
+    // Get the padded length of each encoding.
+    let padded_token_length = encodings[0].len();
+
+    // Get our token IDs & mask as a flattened array.
+    let ids: Vec<i64> = encodings
+        .iter()
+        .flat_map(|e| e.get_ids().iter().map(|i| *i as i64))
+        .collect();
+    let mask: Vec<i64> = encodings
+        .iter()
+        .flat_map(|e| e.get_attention_mask().iter().map(|i| *i as i64))
+        .collect();
+
+    // Convert our flattened arrays into 2-dimensional tensors of shape [N, L].
+    let a_ids = Array2::from_shape_vec([data.len(), padded_token_length], ids).unwrap();
+    let a_mask = Array2::from_shape_vec([data.len(), padded_token_length], mask).unwrap();
+
+    // Run the model.
+    let outputs = session.run(ort::inputs![a_ids, a_mask]?)?;
+
+    // Extract our embeddings tensor and convert it to a strongly-typed 2-dimensional array.
+    let embeddings = outputs[1]
+        .try_extract_tensor::<f32>()?
+        .into_dimensionality::<Ix2>()
+        .unwrap();
+
+    Ok(embeddings.into_owned())
 }

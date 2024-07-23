@@ -16,8 +16,8 @@ use log::{
 };
 use sysinfo::System;
 
-/// Test environment string for differentiating between dev and prod
-pub const TEST: &str = "test";
+/// Write collections to a separate database
+pub const COLLECTIONS: &str = "collections";
 /// Keys indexer constant for writing all collections keys
 pub const VALENTINUS_KEYS: &str = "keys";
 /// Views indexer constant for writing all collections view names
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn environment_test() {
-        let db = DatabaseEnvironment::open(TEST);
+        let db = DatabaseEnvironment::open("test");
         const DATA_SIZE: usize = 10000000;
         let mut data = vec![0u8; DATA_SIZE];
         rand::thread_rng().fill_bytes(&mut data);
