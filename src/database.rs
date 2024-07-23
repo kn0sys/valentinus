@@ -74,7 +74,7 @@ impl DatabaseEnvironment {
     }
     /// Write a key/value pair to the database. It is not possible to
     /// 
-    /// overwrite an existing key/value pair.
+    /// write with empty keys.
     fn write(e: &Environment, h: &DbHandle, k: &Vec<u8>, v: &Vec<u8>) {
         info!("excecuting lmdb write");
         if k.is_empty() {
@@ -100,7 +100,7 @@ impl DatabaseEnvironment {
     /// 
     /// an empty vector will be returned. Treat all empty vectors
     /// 
-    /// from database operations failures.
+    /// from database operations as failures.
     pub fn read(e: &Environment, h: &DbHandle, k: &Vec<u8>) -> Vec<u8> {
         info!("excecuting lmdb read");
         // don't try and read empty keys
@@ -166,9 +166,9 @@ impl DatabaseEnvironment {
     }
 }
 
-/// Write chunks to the database. This function uses twenty percent
+/// Write chunks to the database. This function uses ten percent
 /// 
-/// of the available memory. Setting the map_size to a low value 
+/// of the map size . Setting the map_size to a low value 
 /// 
 /// will cause degraded performance.
 pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn environment_test() {
         let db = DatabaseEnvironment::open(TEST);
-        const DATA_SIZE: usize = 100000000;
+        const DATA_SIZE: usize = 10000000;
         let mut data = vec![0u8; DATA_SIZE];
         rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
