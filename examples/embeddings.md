@@ -1,6 +1,6 @@
 ```rust
 fn foo() {
-    const SLICE_DOCUMENTS: [&str; 10] = [
+    const SLICE_DOCUMENTS: [&str; 11] = [
             "The latest iPhone model comes with impressive features and a powerful camera.",
             "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
             "Einstein's theory of relativity revolutionized our understanding of space and time.",
@@ -11,8 +11,9 @@ fn foo() {
             "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
             "Startup companies often face challenges in securing funding and scaling their operations.",
             "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
+            "Soy sauce ramen is common, with typical toppings including sliced pork, nori, menma, and scallion.",
     ];
-    const  SLICE_METADATA: [&str; 10] = [
+    const  SLICE_METADATA: [&str; 11] = [
             "technology",
             "travel",
             "science",
@@ -23,6 +24,7 @@ fn foo() {
             "climate change",
             "business",
             "music",
+            "food",
     ];
     let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
         let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
@@ -42,11 +44,29 @@ fn foo() {
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
         let related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related, 1);
+            query_string.clone(),
+            String::from(ec.get_view()),
+            CosineThreshold::Related,
+            3,
+            Some(String::from("food")),
+        );
         let not_related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string, String::from(ec.get_view()), CosineThreshold::NotRelated,1 );
-        assert!(!related.is_empty());
-        assert!(!not_related.is_empty());
+            query_string.clone(),
+            String::from(ec.get_view()),
+            CosineThreshold::NotRelated,
+            1,
+            None,
+        );
+        let all: Vec<String> = EmbeddingCollection::cosine_query(
+            query_string,
+            String::from(ec.get_view()),
+            CosineThreshold::Neutral,
+            0,
+            None,
+        );
+        assert!(related.len() == 2);
+        assert!(not_related.len() == 1);
+        assert!(all.len() == SLICE_DOCUMENTS.len());
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
 }

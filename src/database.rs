@@ -4,16 +4,9 @@
 
 extern crate lmdb_rs as lmdb;
 
-use lmdb::{
-    DbFlags,
-    DbHandle,
-    EnvBuilder,
-    Environment,
-};
+use lmdb::{DbFlags, DbHandle, EnvBuilder, Environment};
 use lmdb_rs::Database;
-use log::{
-    error, info
-};
+use log::{error, info};
 use sysinfo::System;
 
 /// Write collections to a separate database
@@ -32,7 +25,7 @@ const MAP_SIZE_MEMORY_RATIO: f32 = 0.2;
 const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.1;
 
 /// The database environment for handling primary database operations.
-/// 
+///
 /// By default the database will be written to /home/user/.valentinus/<ENV>/lmdb
 pub struct DatabaseEnvironment {
     pub env: Environment,
@@ -42,13 +35,14 @@ pub struct DatabaseEnvironment {
 /// LMDB implementation.
 impl DatabaseEnvironment {
     /// Opens environment in specified path. The map size defaults to 20 percent
-    /// 
+    ///
     /// of available memory and can be set via the `LMDB_MAP_SIZE` environment variable.
-    /// 
+    ///
     /// The path of the user can be set with `LMDB_USER`.
     pub fn open(env: &str) -> Self {
         let s = System::new_all();
-        let default_map_size: u64 = (s.available_memory() as f32 * MAP_SIZE_MEMORY_RATIO).floor() as u64;
+        let default_map_size: u64 =
+            (s.available_memory() as f32 * MAP_SIZE_MEMORY_RATIO).floor() as u64;
         let env_map_size: u64 = match std::env::var("LMDB_MAP_SIZE") {
             Err(_) => default_map_size,
             Ok(size) => size.parse::<u64>().unwrap_or(default_map_size),
@@ -73,7 +67,7 @@ impl DatabaseEnvironment {
         DatabaseEnvironment { env, handle }
     }
     /// Write a key/value pair to the database. It is not possible to
-    /// 
+    ///
     /// write with empty keys.
     fn write(e: &Environment, h: &DbHandle, k: &Vec<u8>, v: &Vec<u8>) {
         info!("excecuting lmdb write");
@@ -91,15 +85,16 @@ impl DatabaseEnvironment {
             let db: Database = txn.bind(h);
             let pair: Vec<(&Vec<u8>, &Vec<u8>)> = vec![(&k, v)];
             for &(key, value) in pair.iter() {
-                db.set(key, value).unwrap_or_else(|_| error!("failed to set key: {:?}", k));
+                db.set(key, value)
+                    .unwrap_or_else(|_| error!("failed to set key: {:?}", k));
             }
         }
         txn.commit().unwrap()
     }
     /// Read key from the database. If it doesn't exist then
-    /// 
+    ///
     /// an empty vector will be returned. Treat all empty vectors
-    /// 
+    ///
     /// from database operations as failures.
     pub fn read(e: &Environment, h: &DbHandle, k: &Vec<u8>) -> Vec<u8> {
         info!("excecuting lmdb read");
@@ -121,9 +116,11 @@ impl DatabaseEnvironment {
             let mut key_count: Vec<u8> = (num_writes).to_be_bytes().to_vec();
             new_key.append(&mut key_count);
             let mut r = db.get::<Vec<u8>>(&new_key).unwrap_or_default();
-            if r.is_empty() { break; }
+            if r.is_empty() {
+                break;
+            }
             result.append(&mut r);
-        }   
+        }
         {
             if result.is_empty() {
                 error!("failed to read key {:?} from db", k);
@@ -158,8 +155,11 @@ impl DatabaseEnvironment {
                 let mut key_count: Vec<u8> = num_writes.to_be_bytes().to_vec();
                 new_key.append(&mut key_count);
                 let r = db_reader.get::<Vec<u8>>(&new_key).unwrap_or_default();
-                if r.is_empty() { break; }
-                db.del(&new_key).unwrap_or_else(|_| error!("failed to delete"));
+                if r.is_empty() {
+                    break;
+                }
+                db.del(&new_key)
+                    .unwrap_or_else(|_| error!("failed to delete"));
             }
         }
         txn.commit().unwrap()
@@ -167,9 +167,9 @@ impl DatabaseEnvironment {
 }
 
 /// Write chunks to the database. This function uses ten percent
-/// 
-/// of the map size . Setting the map_size to a low value 
-/// 
+///
+/// of the map size . Setting the map_size to a low value
+///
 /// will cause degraded performance.
 pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
     let s = System::new_all();
@@ -181,7 +181,9 @@ pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
     loop {
         while writes < chunk_size as usize {
             chunk.push(v[index]);
-            if index == v.len() - 1 { break; }
+            if index == v.len() - 1 {
+                break;
+            }
             index += 1;
             writes += 1;
         }
@@ -192,7 +194,9 @@ pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
         DatabaseEnvironment::write(e, h, &old_key, &chunk);
         key_counter += 1;
         chunk = Default::default(); // empty chunk container for next write
-        if index == v.len() - 1 { break; }
+        if index == v.len() - 1 {
+            break;
+        }
     }
 }
 
@@ -216,6 +220,6 @@ mod tests {
         write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
         let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
         assert_eq!(expected.to_vec(), actual);
-        DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));   
+        DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
     }
 }

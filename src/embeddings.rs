@@ -1,14 +1,14 @@
 #![deny(missing_docs)]
 
 //! Library for handling embeddings.
-//! 
+//!
 //! ## Example
-//! 
+//!
 //! ```rust
 //! use valentinus::embeddings::*;
-//! 
+//!
 //! fn foo() {
-//!     const SLICE_DOCUMENTS: [&str; 10] = [
+//!     const SLICE_DOCUMENTS: [&str; 11] = [
 //!             "The latest iPhone model comes with impressive features and a powerful camera.",
 //!             "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
 //!             "Einstein's theory of relativity revolutionized our understanding of space and time.",
@@ -19,8 +19,9 @@
 //!             "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
 //!             "Startup companies often face challenges in securing funding and scaling their operations.",
 //!             "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
+//!             "Soy sauce ramen is common, with typical toppings including sliced pork, nori, menma, and scallion.",
 //!     ];
-//!     const  SLICE_METADATA: [&str; 10] = [
+//!     const  SLICE_METADATA: [&str; 11] = [
 //!             "technology",
 //!             "travel",
 //!             "science",
@@ -31,6 +32,7 @@
 //!             "climate change",
 //!             "business",
 //!             "music",
+//!             "food",
 //!     ];
 //! let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
 //! let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
@@ -50,16 +52,31 @@
 //! // query the collection
 //! let query_string: String = String::from("Find me some delicious food!");
 //! let related: Vec<String> = EmbeddingCollection::cosine_query(
-//!    query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related, 1);
+//!    query_string.clone(),
+//!    String::from(ec.get_view()),
+//!    CosineThreshold::Related,
+//!    3,
+//!    Some(String::from("food")),
+//! );
 //! let not_related: Vec<String> = EmbeddingCollection::cosine_query(
-//!    query_string, String::from(ec.get_view()), CosineThreshold::NotRelated, 1);
-//! assert!(!related.is_empty());
-//! assert!(!not_related.is_empty());
-//! // remove collection from db
-//! EmbeddingCollection::delete(String::from(ec.get_view()));
+//!    query_string.clone(),
+//!    String::from(ec.get_view()),
+//!    CosineThreshold::NotRelated,
+//!    1,
+//!    None,
+//! );
+//! let all: Vec<String> = EmbeddingCollection::cosine_query(
+//!    query_string,
+//!    String::from(ec.get_view()),
+//!    CosineThreshold::Neutral,
+//!    0,
+//!    None,
+//! );
+//! assert!(related.len() == 2);
+//! assert!(not_related.len() == 1);
+//! assert!(all.len() == SLICE_DOCUMENTS.len());
 //! }
 //! ```
-
 
 use lazy_static::lazy_static;
 use ndarray::Array2;
@@ -69,8 +86,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::{database::*, onnx::*};
 use log::*;
-use crate::{ database::*, onnx::* };
 
 lazy_static! {
     static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
@@ -83,6 +100,8 @@ pub enum CosineThreshold {
     Related,
     /// Negative values
     NotRelated,
+    /// Any values
+    Neutral,
 }
 
 /// Identifier for model used with the collection.
@@ -91,7 +110,7 @@ pub enum ModelType {
     /// AllMiniLmL12V2 model
     AllMiniLmL12V2,
     /// AllMiniLmL6V2 model
-    AllMiniLmL6V2
+    AllMiniLmL6V2,
 }
 
 impl ModelType {
@@ -99,7 +118,7 @@ impl ModelType {
     pub fn value(&self) -> String {
         match *self {
             Self::AllMiniLmL12V2 => String::from("AllMiniLmL12V2"),
-            Self::AllMiniLmL6V2 => String::from("AllMiniLmL6V2")
+            Self::AllMiniLmL6V2 => String::from("AllMiniLmL6V2"),
         }
     }
 }
@@ -113,20 +132,18 @@ pub struct KeyViewIndexer {
 impl KeyViewIndexer {
     /// Used to create a new indexer.
     fn new(v: &[String]) -> KeyViewIndexer {
-        KeyViewIndexer {
-            values: v.to_vec()
-        }
+        KeyViewIndexer { values: v.to_vec() }
     }
 }
 
 /// Want to write a collection to the db?
-/// 
+///
 /// Look no further. Use `EmbeddingCollection::new()`
-/// 
+///
 /// to create a new EmbeddingCollection. Write it to the
-/// 
+///
 /// database with `EmbeddingCollection::save()`.
-#[derive(Debug, Default, Deserialize, Serialize)] 
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct EmbeddingCollection {
     /// Ideally an array of &str slices mapped to a vector
     documents: Vec<String>,
@@ -143,38 +160,52 @@ pub struct EmbeddingCollection {
     /// Key for the collection itself. Keys are recorded as `keys` as a `Vec<String>`
     key: String,
     /// View name for convenice sake. Lookup is recorded in `views` as a `Vec<String>`
-    view: String
+    view: String,
 }
-
 
 impl EmbeddingCollection {
     /// Create a new collection of unstructured data. Must be saved with the `save` method
-    pub fn new(documents: Vec<String>, metadata: Vec<String>, ids: Vec<String>, name: String,
-        model_type: String, model_path: String)
-        -> EmbeddingCollection {
-            if !VIEWS_NAMING_CHECK.is_match(&name) {
-                error!("views name {} must only contain alphanumerics/underscores", &name);
-                return Default::default();
-            }
-            // check if  the views name is unique
-            let db: DatabaseEnvironment= DatabaseEnvironment::open(COLLECTIONS);
-            let views_lookup: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
-            let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup);
-            let view_indexer: KeyViewIndexer = bincode::deserialize(&views[..]).unwrap_or_default();
-            if view_indexer.values.contains(&name) {
-                error!("view name must be unique");
-                return Default::default();
-            }
-            info!("creating new collection: {}", &name);
-            let id: Uuid = Uuid::new_v4();
-            let key: String = format!("{}-{}", VALENTINUS_KEY, id);
-            let view: String = format!("{}-{}", VALENTINUS_VIEW, name);
-            EmbeddingCollection {
-                documents, embeddings: Default::default(), metadata, ids, key, view, model_path, model_type,
-            }
+    pub fn new(
+        documents: Vec<String>,
+        metadata: Vec<String>,
+        ids: Vec<String>,
+        name: String,
+        model_type: String,
+        model_path: String,
+    ) -> EmbeddingCollection {
+        if !VIEWS_NAMING_CHECK.is_match(&name) {
+            error!(
+                "views name {} must only contain alphanumerics/underscores",
+                &name
+            );
+            return Default::default();
+        }
+        // check if  the views name is unique
+        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
+        let views_lookup: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
+        let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup);
+        let view_indexer: KeyViewIndexer = bincode::deserialize(&views[..]).unwrap_or_default();
+        if view_indexer.values.contains(&name) {
+            error!("view name must be unique");
+            return Default::default();
+        }
+        info!("creating new collection: {}", &name);
+        let id: Uuid = Uuid::new_v4();
+        let key: String = format!("{}-{}", VALENTINUS_KEY, id);
+        let view: String = format!("{}-{}", VALENTINUS_VIEW, name);
+        EmbeddingCollection {
+            documents,
+            embeddings: Default::default(),
+            metadata,
+            ids,
+            key,
+            view,
+            model_path,
+            model_type,
+        }
     }
     /// Save a collection to the database. Error if the key already exists.
-    /// 
+    ///
     /// Set `gpu` to true to enable the `CUDAExecutionProver`.
     pub fn save(&mut self) {
         info!("saving new embedding collection: {}", self.view);
@@ -182,7 +213,8 @@ impl EmbeddingCollection {
         self.set_kv_index();
         self.set_view_indexes();
         // set the embeddings
-        let embeddings: Array2<f32> = generate_embeddings(&self.model_path, &self.documents).unwrap_or_default();
+        let embeddings: Array2<f32> =
+            generate_embeddings(&self.model_path, &self.documents).unwrap_or_default();
         self.set_embeddings(embeddings);
         let collection: Vec<u8> = bincode::serialize(&self).unwrap();
         if collection.is_empty() {
@@ -196,7 +228,7 @@ impl EmbeddingCollection {
     /// Fetch all known keys or views in the database.
     ///
     /// By default the database will return keys. Set the
-    /// 
+    ///
     /// views argument to `true` to fetch all the views.
     pub fn fetch_collection_keys(views: bool) -> KeyViewIndexer {
         let mut b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
@@ -211,15 +243,20 @@ impl EmbeddingCollection {
         indexer
     }
     /// Send a cosine similarity query on a collection against a query string.
-    /// 
+    ///
     /// The number of results will be returned based on the threshold, where `Related`
+    ///
+    /// are positive values and `NotRelated ` negative values. Setting `num_results=0` will
     /// 
-    /// are positive values and `NotRelated ` negative values.
-    pub fn cosine_query(query_string: String, view_name: String, ct: CosineThreshold, num_results: usize) -> Vec<String> {
-        if num_results == 0 {
-            error!("number of results must be greater than zero");
-            return Default::default();
-        }
+    /// return all results. An optional `metadatastring` can be set to further restrict the query.
+    pub fn cosine_query(
+        query_string: String,
+        view_name: String,
+        ct: CosineThreshold,
+        num_results: usize,
+        metadata: Option<String>,
+    ) -> Vec<String> {
+        let filter: bool = metadata.is_some();
         info!("querying {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name));
         let qv_string = vec![query_string];
@@ -234,17 +271,24 @@ impl EmbeddingCollection {
         info!("calculating cosine similarity");
         let mut results: Vec<String> = Vec::new();
         let query = qv.index_axis(Axis(0), 0);
-        for (cv, sentence) in cv.axis_iter(Axis(0)).zip(docs.iter()).skip(1) {
-            // Calculate cosine similarity against the 'query' sentence.
-            let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
-            if ct == CosineThreshold::Related && dot_product > 0.0 {
-                results.push(String::from(sentence));
-            }
-            if ct == CosineThreshold::NotRelated && dot_product < 0.0 {
-                results.push(String::from(sentence));
+        let meta_filter: String = metadata.unwrap_or_default();
+        for (cv, sentence) in cv.axis_iter(Axis(0)).zip(docs.iter()) {
+            let index: Option<usize> = docs.iter().rposition(|x| x == sentence);
+            if !filter || collection.metadata[index.unwrap_or_default()] == meta_filter {
+                // Calculate cosine similarity against the 'query' sentence.
+                let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
+                if (ct == CosineThreshold::Related && dot_product > 0.0 ) 
+                    || (ct == CosineThreshold::NotRelated && dot_product < 0.0)
+                    || ct == CosineThreshold::Neutral {
+                    results.push(String::from(sentence));
+                }
             }
         }
-        if results.len() < num_results { results } else { results[0..num_results].to_vec() }
+        if results.len() < num_results || num_results == 0 {
+            results
+        } else {
+            results[0..num_results].to_vec()
+        }
     }
     /// Delete a collection from the database
     pub fn delete(view_name: String) {
@@ -331,7 +375,7 @@ impl EmbeddingCollection {
 }
 
 /// Look up a collection by key or view. If both key and view are passed,
-/// 
+///
 /// then key lookup will override the latter.
 fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
     if key.is_some() {
@@ -359,7 +403,7 @@ mod tests {
 
     use super::*;
 
-    const SLICE_DOCUMENTS: [&str; 10] = [
+    const SLICE_DOCUMENTS: [&str; 11] = [
             "The latest iPhone model comes with impressive features and a powerful camera.",
             "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
             "Einstein's theory of relativity revolutionized our understanding of space and time.",
@@ -370,19 +414,21 @@ mod tests {
             "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
             "Startup companies often face challenges in securing funding and scaling their operations.",
             "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
+            "Soy sauce ramen is common, with typical toppings including sliced pork, nori, menma, and scallion."
         ];
-    const  SLICE_METADATA: [&str; 10] = [
-            "technology",
-            "travel",
-            "science",
-            "food",
-            "history",
-            "fitness",
-            "art",
-            "climate change",
-            "business",
-            "music",
-        ];
+    const SLICE_METADATA: [&str; 11] = [
+        "technology",
+        "travel",
+        "science",
+        "food",
+        "history",
+        "fitness",
+        "art",
+        "climate change",
+        "business",
+        "music",
+        "food"
+    ];
 
     #[test]
     fn cosine_collection_test() {
@@ -396,7 +442,8 @@ mod tests {
         let model_type = ModelType::AllMiniLmL6V2.value();
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
-        let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
+        let mut ec: EmbeddingCollection =
+            EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
         let created_docs: &Vec<String> = ec.get_documents();
         assert_eq!(expected, created_docs.to_vec());
         // save collection to db
@@ -404,13 +451,30 @@ mod tests {
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
         let related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string.clone(), String::from(ec.get_view()), CosineThreshold::Related, 2);
+            query_string.clone(),
+            String::from(ec.get_view()),
+            CosineThreshold::Related,
+            3,
+            Some(String::from("food")),
+        );
         let not_related: Vec<String> = EmbeddingCollection::cosine_query(
-            query_string, String::from(ec.get_view()), CosineThreshold::NotRelated, 1);
+            query_string.clone(),
+            String::from(ec.get_view()),
+            CosineThreshold::NotRelated,
+            1,
+            None,
+        );
+        let all: Vec<String> = EmbeddingCollection::cosine_query(
+            query_string,
+            String::from(ec.get_view()),
+            CosineThreshold::Neutral,
+            0,
+            None,
+        );
         assert!(related.len() == 2);
         assert!(not_related.len() == 1);
+        assert!(all.len() == SLICE_DOCUMENTS.len());
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }
-
 }
