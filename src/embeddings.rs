@@ -63,13 +63,14 @@
 
 use lazy_static::lazy_static;
 use ndarray::Array2;
+use ndarray::Axis;
 use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
 use log::*;
-use crate::{ database::*, ml::*, onnx::* };
+use crate::{ database::*, onnx::* };
 
 lazy_static! {
     static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
@@ -226,7 +227,20 @@ impl EmbeddingCollection {
         let qv = qv_output.unwrap_or_default();
         let cv = collection.embeddings;
         let docs = collection.documents;
-        compute_cosine_similarity(qv, cv, docs, ct)
+        info!("calculating cosine similarity");
+        let mut results: Vec<String> = Vec::new();
+        let query = qv.index_axis(Axis(0), 0);
+        for (cv, sentence) in cv.axis_iter(Axis(0)).zip(docs.iter()).skip(1) {
+            // Calculate cosine similarity against the 'query' sentence.
+            let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
+            if ct == CosineThreshold::Related && dot_product > 0.0 {
+                results.push(String::from(sentence));
+            }
+            if ct == CosineThreshold::NotRelated && dot_product < 0.0 {
+                results.push(String::from(sentence));
+            }
+        }
+        results
     }
     /// Delete a collection from the database
     pub fn delete(view_name: String) {
