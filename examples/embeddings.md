@@ -1,33 +1,28 @@
 ```rust
-fn foo() {
-    const SLICE_DOCUMENTS: [&str; 11] = [
-            "The latest iPhone model comes with impressive features and a powerful camera.",
-            "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
-            "Einstein's theory of relativity revolutionized our understanding of space and time.",
-            "Traditional Italian pizza is famous for its thin crust, fresh ingredients, and wood-fired ovens.",
-            "The American Revolution had a profound impact on the birth of the United States as a nation.",
-            "Regular exercise and a balanced diet are essential for maintaining good physical health.",
-            "Leonardo da Vinci's Mona Lisa is considered one of the most iconic paintings in art history.",
-            "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
-            "Startup companies often face challenges in securing funding and scaling their operations.",
-            "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
-            "Soy sauce ramen is common, with typical toppings including sliced pork, nori, menma, and scallion.",
-    ];
-    const  SLICE_METADATA: [&str; 11] = [
-            "technology",
-            "travel",
-            "science",
-            "food",
-            "history",
-            "fitness",
-            "art",
-            "climate change",
-            "business",
-            "music",
-            "food",
-    ];
-    let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
-        let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
+    use valentinus::embeddings::*;
+    use std::fs::File;
+    use serde::Deserialize;
+
+    /// Let's extract reviews and ratings
+    #[derive(Default, Deserialize)]
+    #[serde(rename_all = "PascalCase")]
+    struct Review {
+        review: Option<String>,
+        rating: Option<String>,
+    }
+
+    fn main() {
+        let mut documents: Vec<String> = Vec::new();
+        let mut metadata: Vec<String> = Vec::new();
+        // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
+        let file_path = "Scraped_Car_Review_tesla.csv";
+        let file = File::open(file_path).expect("csv file not found");
+        let mut rdr = csv::Reader::from_reader(file);
+        for result in rdr.deserialize() {
+            let record: Review = result.unwrap_or_default();
+            documents.push(record.review.unwrap_or_default());
+            metadata.push(record.rating.unwrap_or_default());
+        }
         let mut ids: Vec<String> = Vec::new();
         for i in 0..documents.len() {
             ids.push(format!("id{}", i));
@@ -36,38 +31,24 @@ fn foo() {
         let model_type = ModelType::AllMiniLmL6V2.value();
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
-        let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
+        let mut ec: EmbeddingCollection =
+            EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
         let created_docs: &Vec<String> = ec.get_documents();
         assert_eq!(expected, created_docs.to_vec());
         // save collection to db
         ec.save();
         // query the collection
-        let query_string: String = String::from("Find me some delicious food!");
-        let related: CosineQueryResult = EmbeddingCollection::cosine_query(
-            query_string.clone(),
+        let query_string: String = String::from("Find the best reviews.");
+        let result: CosineQueryResult = EmbeddingCollection::cosine_query(
+            query_string,
             String::from(ec.get_view()),
             CosineThreshold::Related,
             3,
-            Some(String::from("food")),
+            Some(String::from("5")),
         );
-        let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
-            query_string.clone(),
-            String::from(ec.get_view()),
-            CosineThreshold::NotRelated,
-            1,
-            None,
-        );
-        let all: CosineQueryResult = EmbeddingCollection::cosine_query(
-            query_string,
-            String::from(ec.get_view()),
-            CosineThreshold::Neutral,
-            0,
-            None,
-        );
-        assert!(related.get_docs().len() == 2);
-        assert!(not_related.get_docs().len() == 1);
-        assert!(all.get_docs().len() == SLICE_DOCUMENTS.len());
+        println!("{:#?}", result);
+        assert!(!result.get_docs().is_empty());
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
-}
+    }
 ```
