@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 
 //! Library for handling embeddings.
-//!
+//! 
 //! ## Example
 //!
 //! ```rust
@@ -162,7 +162,7 @@ pub struct EmbeddingCollection {
     embeddings: Array2<f32>,
     /// Genres mapped to their perspective document by index
     metadata: Vec<String>,
-    /// Path to onnx.model and tokenizer.json
+    /// Path to model.onnx and tokenizer.json
     model_path: String,
     /// model type
     model_type: String,
@@ -216,8 +216,6 @@ impl EmbeddingCollection {
         }
     }
     /// Save a collection to the database. Error if the key already exists.
-    ///
-    /// Set `gpu` to true to enable the `CUDAExecutionProver`.
     pub fn save(&mut self) {
         info!("saving new embedding collection: {}", self.view);
         self.set_key_indexes();
@@ -261,11 +259,7 @@ impl EmbeddingCollection {
     }
     /// Send a cosine similarity query on a collection against a query string.
     ///
-    /// The number of results will be returned based on the threshold, where `Related`
-    ///
-    /// are positive values and `NotRelated` negative values. Setting `num_results=0`,
-    ///
-    /// `CosineThreshold::Neutral` and metadata `None` will return all results.
+    /// Setting `num_results=0`, and metadata `None` will return all results.
     pub fn cosine_query(
         query_string: String,
         view_name: String,

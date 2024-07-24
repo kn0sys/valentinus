@@ -1,5 +1,7 @@
 #![deny(missing_docs)]
 
+//! ort is a Rust binding for ONNX Runtime. For information on how to get started with ort, see https://ort.pyke.io/introduction.
+
 use ndarray::*;
 use ort::{CUDAExecutionProvider, GraphOptimizationLevel, Session};
 use tokenizers::Tokenizer;
@@ -8,6 +10,7 @@ use log::*;
 
 /// Used for controlling the amount of data being encoded
 pub const BATCH_SIZE: usize = 100;
+
 /// Dimensions for the all-mini-lm-l6 model
 const DIMENSIONS: usize = 384;
 

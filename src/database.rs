@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 
-//! Primary LMDB interface for read, write, delete etc.
+//! Logic for interfacing with LMDB.
 
 extern crate lmdb_rs as lmdb;
 
@@ -26,13 +26,12 @@ const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.1;
 
 /// The database environment for handling primary database operations.
 ///
-/// By default the database will be written to /home/user/.valentinus/<ENV>/lmdb
+/// By default the database will be written to /home/user/.valentinus/{ENV}/lmdb
 pub struct DatabaseEnvironment {
     pub env: Environment,
     pub handle: DbHandle,
 }
 
-/// LMDB implementation.
 impl DatabaseEnvironment {
     /// Opens environment in specified path. The map size defaults to 20 percent
     ///
