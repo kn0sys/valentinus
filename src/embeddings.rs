@@ -54,21 +54,18 @@
 //! let related: CosineQueryResult = EmbeddingCollection::cosine_query(
 //!    query_string.clone(),
 //!    String::from(ec.get_view()),
-//!    CosineThreshold::Related,
 //!    3,
 //!    Some(String::from("food")),
 //! );
 //! let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
 //!    query_string.clone(),
 //!    String::from(ec.get_view()),
-//!    CosineThreshold::NotRelated,
 //!    1,
 //!    None,
 //! );
 //! let all: CosineQueryResult = EmbeddingCollection::cosine_query(
 //!    query_string,
 //!    String::from(ec.get_view()),
-//!    CosineThreshold::Neutral,
 //!    0,
 //!    None,
 //! );
@@ -91,17 +88,6 @@ use log::*;
 
 lazy_static! {
     static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
-}
-
-/// Used for `cosine_similarity_query` result filtering .
-#[derive(PartialEq)]
-pub enum CosineThreshold {
-    /// Positive values
-    Related,
-    /// Negative values
-    NotRelated,
-    /// Any values
-    Neutral,
 }
 
 /// Identifier for model used with the collection.
@@ -238,8 +224,14 @@ impl EmbeddingCollection {
         self.set_kv_index();
         self.set_view_indexes();
         // set the embeddings
-        let embeddings: Array2<f32> =
-            generate_embeddings(&self.model_path, &self.documents).unwrap_or_default();
+        let mut embeddings: Array2<f32> = Default::default();
+        info!("initialized embeddings: {}", embeddings.len());
+        if self.documents.len() < BATCH_SIZE {
+            embeddings = generate_embeddings(&self.model_path, &self.documents).unwrap_or_default();
+        } else {
+            embeddings = batch_embeddings(&self.model_path, &self.documents).unwrap_or_default();
+        }   
+        debug!("embeddings set {:?}", embeddings);
         self.set_embeddings(embeddings);
         let collection: Vec<u8> = bincode::serialize(&self).unwrap();
         if collection.is_empty() {
@@ -277,7 +269,6 @@ impl EmbeddingCollection {
     pub fn cosine_query(
         query_string: String,
         view_name: String,
-        ct: CosineThreshold,
         num_results: usize,
         metadata: Option<String>,
     ) -> CosineQueryResult {
@@ -303,13 +294,8 @@ impl EmbeddingCollection {
             if !filter || collection.metadata[index.unwrap_or_default()] == meta_filter {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
-                if (ct == CosineThreshold::Related && dot_product > 0.0)
-                    || (ct == CosineThreshold::NotRelated && dot_product < 0.0)
-                    || ct == CosineThreshold::Neutral
-                {
-                    r_docs.push(String::from(sentence));
-                    r_sims.push(dot_product);
-                }
+                r_docs.push(String::from(sentence));
+                r_sims.push(dot_product);
             }
         }
         if r_docs.len() < num_results || num_results == 0 {
@@ -484,21 +470,18 @@ mod tests {
         let related: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string.clone(),
             String::from(ec.get_view()),
-            CosineThreshold::Related,
             3,
             Some(String::from("food")),
         );
         let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string.clone(),
             String::from(ec.get_view()),
-            CosineThreshold::NotRelated,
             1,
             None,
         );
         let all: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string,
             String::from(ec.get_view()),
-            CosineThreshold::Neutral,
             0,
             None,
         );

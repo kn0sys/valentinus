@@ -42,7 +42,6 @@
         let result: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string,
             String::from(ec.get_view()),
-            CosineThreshold::Related,
             3,
             Some(String::from("5")),
         );
