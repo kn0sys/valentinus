@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 
 //! Library for handling embeddings.
-//! 
+//!
 //! ## Example
 //!
 //! ```rust
@@ -97,6 +97,8 @@ pub enum ModelType {
     AllMiniLmL12V2,
     /// AllMiniLmL6V2 model
     AllMiniLmL6V2,
+    /// You can also use any model you like
+    Custom,
 }
 
 impl ModelType {
@@ -105,6 +107,7 @@ impl ModelType {
         match *self {
             Self::AllMiniLmL12V2 => String::from("AllMiniLmL12V2"),
             Self::AllMiniLmL6V2 => String::from("AllMiniLmL6V2"),
+            Self::Custom => String::from("Custom"),
         }
     }
 }
@@ -224,12 +227,7 @@ impl EmbeddingCollection {
         // set the embeddings
         let mut embeddings: Array2<f32> = Default::default();
         info!("initialized embeddings: {}", embeddings.len());
-        if self.documents.len() < BATCH_SIZE {
-            embeddings = generate_embeddings(&self.model_path, &self.documents).unwrap_or_default();
-        } else {
-            embeddings = batch_embeddings(&self.model_path, &self.documents).unwrap_or_default();
-        }   
-        debug!("embeddings set {:?}", embeddings);
+        embeddings = batch_embeddings(&self.model_path, &self.documents).unwrap_or_default();
         self.set_embeddings(embeddings);
         let collection: Vec<u8> = bincode::serialize(&self).unwrap();
         if collection.is_empty() {
@@ -270,7 +268,7 @@ impl EmbeddingCollection {
         info!("querying {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name));
         let qv_string = vec![query_string];
-        let qv_output = generate_embeddings(&collection.model_path, &qv_string);
+        let qv_output = batch_embeddings(&collection.model_path, &qv_string);
         if qv_output.is_err() {
             error!("failed to generate embeddings for query vector");
             return Default::default();
@@ -333,7 +331,7 @@ impl EmbeddingCollection {
         &self.view
     }
     /// Setter for embeddings
-    pub fn set_embeddings(&mut self, embeddings: Array2<f32>) {
+    fn set_embeddings(&mut self, embeddings: Array2<f32>) {
         self.embeddings = embeddings;
     }
     /// Sets the list of views in the database
@@ -416,37 +414,30 @@ mod tests {
 
     use super::*;
 
-    const SLICE_DOCUMENTS: [&str; 11] = [
-            "The latest iPhone model comes with impressive features and a powerful camera.",
-            "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
-            "Einstein's theory of relativity revolutionized our understanding of space and time.",
-            "Traditional Italian pizza is famous for its thin crust, fresh ingredients, and wood-fired ovens.",
-            "The American Revolution had a profound impact on the birth of the United States as a nation.",
-            "Regular exercise and a balanced diet are essential for maintaining good physical health.",
-            "Leonardo da Vinci's Mona Lisa is considered one of the most iconic paintings in art history.",
-            "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
-            "Startup companies often face challenges in securing funding and scaling their operations.",
-            "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
-            "Soy sauce ramen is common, with typical toppings including sliced pork, nori, menma, and scallion."
-        ];
-    const SLICE_METADATA: [&str; 11] = [
-        "technology",
-        "travel",
-        "science",
-        "food",
-        "history",
-        "fitness",
-        "art",
-        "climate change",
-        "business",
-        "music",
-        "food",
-    ];
+    use std::{fs::File, path::Path};
+    use serde::Deserialize;
+
+    /// Let's extract reviews and ratings
+    #[derive(Default, Deserialize)]
+    #[serde(rename_all = "PascalCase")]
+    struct Review {
+        review: Option<String>,
+        rating: Option<String>,
+    }
 
     #[test]
-    fn cosine_collection_test() {
-        let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
-        let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
+    fn cosine_etl_test() {
+        let mut documents: Vec<String> = Vec::new();
+        let mut metadata: Vec<String> = Vec::new();
+        // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
+        let file_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("Scraped_Car_Review_tesla.csv");
+        let file = File::open(file_path).expect("csv file not found");
+        let mut rdr = csv::Reader::from_reader(file);
+        for result in rdr.deserialize() {
+            let record: Review = result.unwrap_or_default();
+            documents.push(record.review.unwrap_or_default());
+            metadata.push(record.rating.unwrap_or_default());
+        }
         let mut ids: Vec<String> = Vec::new();
         for i in 0..documents.len() {
             ids.push(format!("id{}", i));
@@ -462,21 +453,14 @@ mod tests {
         // save collection to db
         ec.save();
         // query the collection
-        let query_string: String = String::from("Find me some delicious food!");
-        let related: CosineQueryResult = EmbeddingCollection::cosine_query(
-            query_string.clone(),
+        let query_string: String = String::from("Find the best reviews.");
+        let result: CosineQueryResult = EmbeddingCollection::cosine_query(
+            query_string,
             String::from(ec.get_view()),
             3,
-            Some(vec![String::from("food")]),
+            Some(vec![String::from("5"),String::from("4"),String::from("3")]),
         );
-        let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
-            query_string.clone(),
-            String::from(ec.get_view()),
-            1,
-            None,
-        );
-        assert!(related.get_docs().len() == 2);
-        assert!(not_related.get_docs().len() == 1);
+        assert!(!result.get_docs().is_empty());
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }

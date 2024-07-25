@@ -15,7 +15,7 @@ pub const BATCH_SIZE: usize = 100;
 const DIMENSIONS: usize = 384;
 
 /// ONNX Embeddings generator
-pub fn generate_embeddings(
+fn generate_embeddings(
     model_path: &String,
     data: &Vec<String>,
 ) -> Result<Array2<f32>, ort::Error> {
@@ -64,27 +64,31 @@ pub fn batch_embeddings(
     model_path: &String,
     data: &Vec<String>,
 ) -> Result<Array2<f32>, ort::Error> {
-    info!("batching length {} {}", data.len(), model_path);
-    let mut data_array: ndarray::ArrayBase<OwnedRepr<f32>, ndarray::Dim<[usize; 2]>>
-        = ndarray::Array::zeros((data.len(), DIMENSIONS));
+    info!("batching length {} from {}", data.len(), model_path);
+    let mut data_array: ndarray::ArrayBase<OwnedRepr<f32>, ndarray::Dim<[usize; 2]>> =
+        ndarray::Array::zeros((data.len(), DIMENSIONS));
     let mut begin: usize = 0;
     let mut multiplier: usize = 1;
     let length = data.len();
     while length - begin > BATCH_SIZE {
-        let end = (BATCH_SIZE*multiplier)-1;
-        let embeddings = generate_embeddings(model_path, &data[begin..end].to_vec()).unwrap_or_default();
+        info!("{} encodings remaining", length-begin);
+        let end = (BATCH_SIZE * multiplier) - 1;
+        let embeddings =
+            generate_embeddings(model_path, &data[begin..end].to_vec()).unwrap_or_default();
         for index1 in begin..end {
             for index2 in 0..DIMENSIONS {
-                data_array[[index1, index2]] = embeddings[[index1-begin, index2]];
+                data_array[[index1, index2]] = embeddings[[index1 - begin, index2]];
             }
         }
         begin += BATCH_SIZE;
         multiplier += 1;
     }
-    let embeddings = generate_embeddings(model_path, &data[begin..length].to_vec()).unwrap_or_default();
-    for index1 in 0..length-begin {
+    info!("{} encodings remaining", length-begin);
+    let embeddings =
+        generate_embeddings(model_path, &data[begin..length].to_vec()).unwrap_or_default();
+    for index1 in 0..length - begin {
         for index2 in 0..DIMENSIONS {
-            data_array[[(index1+begin), index2]] = embeddings[[index1, index2]];
+            data_array[[(index1 + begin), index2]] = embeddings[[index1, index2]];
         }
     }
     Ok(data_array)

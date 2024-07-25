@@ -1,6 +1,6 @@
 [package]
 name = "valentinus"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 documentation = "https://docs.rs/valentinus"
@@ -38,3 +38,4 @@ uuid           = { version = "1.10.0", features = [ "v4"] }
 
 [dev-dependencies]
 rand           = "0.8.5"
+csv            = "1.3.0"
