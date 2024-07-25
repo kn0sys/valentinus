@@ -55,7 +55,7 @@
 //!    query_string.clone(),
 //!    String::from(ec.get_view()),
 //!    3,
-//!    Some(String::from("food")),
+//!    Some(vec![String::from("food")]),
 //! );
 //! let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
 //!    query_string.clone(),
@@ -264,7 +264,7 @@ impl EmbeddingCollection {
         query_string: String,
         view_name: String,
         num_results: usize,
-        metadata: Option<String>,
+        metadata: Option<Vec<String>>,
     ) -> CosineQueryResult {
         let filter: bool = metadata.is_some();
         info!("querying {} embedding collection", view_name);
@@ -282,10 +282,10 @@ impl EmbeddingCollection {
         let mut r_docs: Vec<String> = Vec::new();
         let mut r_sims: Vec<f32> = Vec::new();
         let query = qv.index_axis(Axis(0), 0);
-        let meta_filter: String = metadata.unwrap_or_default();
+        let meta_filter: Vec<String> = metadata.unwrap_or_default();
         for (cv, sentence) in cv.axis_iter(Axis(0)).zip(docs.iter()) {
             let index: Option<usize> = docs.iter().rposition(|x| x == sentence);
-            if !filter || collection.metadata[index.unwrap_or_default()] == meta_filter {
+            if !filter || meta_filter.contains(&collection.metadata[index.unwrap_or_default()]) {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
                 if dot_product > 0.0 {
@@ -467,7 +467,7 @@ mod tests {
             query_string.clone(),
             String::from(ec.get_view()),
             3,
-            Some(String::from("food")),
+            Some(vec![String::from("food")]),
         );
         let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string.clone(),

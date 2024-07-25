@@ -43,7 +43,7 @@
             query_string,
             String::from(ec.get_view()),
             3,
-            Some(String::from("5")),
+            Some(vec![String::from("5"),String::from("4"),String::from("3")]),
         );
         println!("{:#?}", result);
         assert!(!result.get_docs().is_empty());
