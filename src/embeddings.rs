@@ -259,7 +259,7 @@ impl EmbeddingCollection {
     }
     /// Send a cosine similarity query on a collection against a query string.
     ///
-    /// Setting `num_results=0`, and metadata `None` will return all results.
+    /// Setting `num_results=0`, and metadata `None` will return all related results.
     pub fn cosine_query(
         query_string: String,
         view_name: String,
@@ -288,8 +288,10 @@ impl EmbeddingCollection {
             if !filter || collection.metadata[index.unwrap_or_default()] == meta_filter {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
-                r_docs.push(String::from(sentence));
-                r_sims.push(dot_product);
+                if dot_product > 0.0 {
+                    r_docs.push(String::from(sentence));
+                    r_sims.push(dot_product);
+                }
             }
         }
         if r_docs.len() < num_results || num_results == 0 {
@@ -473,15 +475,8 @@ mod tests {
             1,
             None,
         );
-        let all: CosineQueryResult = EmbeddingCollection::cosine_query(
-            query_string,
-            String::from(ec.get_view()),
-            0,
-            None,
-        );
         assert!(related.get_docs().len() == 2);
         assert!(not_related.get_docs().len() == 1);
-        assert!(all.get_docs().len() == SLICE_DOCUMENTS.len());
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }
