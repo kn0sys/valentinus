@@ -1,15 +1,15 @@
 ```rust
     use valentinus::embeddings::*;
-    use std::fs::File;
-    use serde::Deserialize;
+    use std::{fs::File, path::Path};
     use serde_json::Value;
+    use serde::Deserialize;
 
     /// Let's extract reviews and ratings
     #[derive(Default, Deserialize)]
-    #[serde(rename_all = "PascalCase")]
     struct Review {
         review: Option<String>,
         rating: Option<String>,
+        vehicle_title: Option<String>
     }
 
     fn main() {
