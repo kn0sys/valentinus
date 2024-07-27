@@ -8,6 +8,9 @@ pub mod embeddings;
 /// LMDB bindings.
 /// 
 mod database;
+/// Metadata filter
+/// 
+mod filter;
 /// ONNX interface.
 /// 
 mod onnx;

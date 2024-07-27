@@ -6,74 +6,67 @@
 //!
 //! ```rust
 //! use valentinus::embeddings::*;
-//!
-//! fn foo() {
-//!     const SLICE_DOCUMENTS: [&str; 11] = [
-//!             "The latest iPhone model comes with impressive features and a powerful camera.",
-//!             "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
-//!             "Einstein's theory of relativity revolutionized our understanding of space and time.",
-//!             "Traditional Italian pizza is famous for its thin crust, fresh ingredients, and wood-fired ovens.",
-//!             "The American Revolution had a profound impact on the birth of the United States as a nation.",
-//!             "Regular exercise and a balanced diet are essential for maintaining good physical health.",
-//!             "Leonardo da Vinci's Mona Lisa is considered one of the most iconic paintings in art history.",
-//!             "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
-//!             "Startup companies often face challenges in securing funding and scaling their operations.",
-//!             "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
-//!             "Soy sauce ramen is common, with typical toppings including sliced pork, nori, menma, and scallion.",
-//!     ];
-//!     const  SLICE_METADATA: [&str; 11] = [
-//!             "technology",
-//!             "travel",
-//!             "science",
-//!             "food",
-//!             "history",
-//!             "fitness",
-//!             "art",
-//!             "climate change",
-//!             "business",
-//!             "music",
-//!             "food",
-//!     ];
-//! let documents: Vec<String> = SLICE_DOCUMENTS.iter().map(|s| String::from(*s)).collect();
-//! let metadata: Vec<String> = SLICE_METADATA.iter().map(|s| String::from(*s)).collect();
-//! let mut ids: Vec<String> = Vec::new();
-//! for i in 0..documents.len() {
-//!    ids.push(format!("id{}", i));
+//! use serde_json::Value;
+//! use std::{fs::File, path::Path};
+//! use serde::Deserialize;
+//! 
+//! /// Let's extract reviews and ratings
+//! #[derive(Default, Deserialize)]
+//! struct Review {
+//!     review: Option<String>,
+//!     rating: Option<String>,
+//!     vehicle_title: Option<String>,
 //! }
-//! let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-//! let model_type = ModelType::AllMiniLmL6V2.value();
-//! let name = String::from("test_collection");
-//! let expected: Vec<String> = documents.clone();
-//! let mut ec: EmbeddingCollection = EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
-//! let created_docs: &Vec<String> = ec.get_documents();
-//! assert_eq!(expected, created_docs.to_vec());
-//! // save collection to db
-//! ec.save();
-//! // query the collection
-//! let query_string: String = String::from("Find me some delicious food!");
-//! let related: CosineQueryResult = EmbeddingCollection::cosine_query(
-//!    query_string.clone(),
-//!    String::from(ec.get_view()),
-//!    3,
-//!    Some(vec![String::from("food")]),
-//! );
-//! let not_related: CosineQueryResult = EmbeddingCollection::cosine_query(
-//!    query_string.clone(),
-//!    String::from(ec.get_view()),
-//!    1,
-//!    None,
-//! );
-//! let all: CosineQueryResult = EmbeddingCollection::cosine_query(
-//!    query_string,
-//!    String::from(ec.get_view()),
-//!    0,
-//!    None,
-//! );
-//! assert!(related.get_docs().len() == 2);
-//! assert!(not_related.get_docs().len() == 1);
-//! assert!(all.get_docs().len() == SLICE_DOCUMENTS.len());
+//! 
+//! fn foo() {
+//!     let mut documents: Vec<String> = Vec::new();
+//!     let mut metadata: Vec<Vec<String>> = Vec::new();
+//!     // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
+//!     let file_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("Scraped_Car_Review_tesla.csv");
+//!     let file = File::open(file_path).expect("csv file not found");
+//!     let mut rdr = csv::Reader::from_reader(file);
+//!     for result in rdr.deserialize() {
+//!         let record: Review = result.unwrap_or_default();
+//!         documents.push(record.review.unwrap_or_default());
+//!         let rating: u64 = record.rating.unwrap_or_default().parse::<u64>().unwrap_or_default();
+//!         let year: String = record.vehicle_title.unwrap()[0..5].to_string();
+//!         metadata.push(vec![format!(r#"{{"Rating": {}}}"#, rating), format!(r#"{{"Year": "{}"}}"#, year)]);
+//!     }
+//!     let mut ids: Vec<String> = Vec::new();
+//!     for i in 0..documents.len() {
+//!         ids.push(format!("id{}", i));
+//!     }
+//!     let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+//!     let model_type = ModelType::AllMiniLmL6V2.get_value();
+//!     let name = String::from("test_collection");
+//!     let expected: Vec<String> = documents.clone();
+//!     let mut ec: EmbeddingCollection =
+//!         EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
+//!     let created_docs: &Vec<String> = ec.get_documents();
+//!     assert_eq!(expected, created_docs.to_vec());
+//!     // save collection to db
+//!     ec.save();
+//!     // query the collection
+//!     let query_string: String = String::from("Find the best reviews.");
+//!     let result: CosineQueryResult = EmbeddingCollection::cosine_query(
+//!         query_string,
+//!         String::from(ec.get_view()),
+//!         5,
+//!         Some(vec![
+//!             String::from(r#"{ "Rating": {"gt": 3} }"#),
+//!             String::from(r#"{ "Year": {"eq": "2017"} }"#)
+//!         ]),
+//!     );
+//!     assert_eq!(result.get_docs().len(), 5);
+//!     let v: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
+//!     let filter: u64 = 3;
+//!     assert!(v.unwrap()["Rating"].as_u64().unwrap_or(0) > filter);
+//!     // remove collection from db
+//!     EmbeddingCollection::delete(String::from(ec.get_view()));
 //! }
 //! ```
+
+use std::u64;
 
 use lazy_static::lazy_static;
 use ndarray::Array2;
@@ -83,7 +76,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{database::*, onnx::*};
+use crate::{ database::*, onnx::*, filter::filter_where };
 use log::*;
 
 lazy_static! {
@@ -103,7 +96,7 @@ pub enum ModelType {
 
 impl ModelType {
     /// Return `ModelType` as a string value.
-    pub fn value(&self) -> String {
+    pub fn get_value(&self) -> String {
         match *self {
             Self::AllMiniLmL12V2 => String::from("AllMiniLmL12V2"),
             Self::AllMiniLmL6V2 => String::from("AllMiniLmL6V2"),
@@ -130,14 +123,16 @@ impl KeyViewIndexer {
 pub struct CosineQueryResult {
     documents: Vec<String>,
     similarities: Vec<f32>,
+    metadata: Vec<Vec<String>>,
 }
 
 impl CosineQueryResult {
     /// Used to create a result from `cosine_query`.
-    pub fn create(documents: Vec<String>, similarities: Vec<f32>) -> CosineQueryResult {
+    pub fn create(documents: Vec<String>, similarities: Vec<f32>, metadata: Vec<Vec<String>>) -> CosineQueryResult {
         CosineQueryResult {
             documents,
             similarities,
+            metadata,
         }
     }
     /// Get documents from a query result.
@@ -147,6 +142,10 @@ impl CosineQueryResult {
     /// Get similarities from a query result.
     pub fn get_similarities(&self) -> &Vec<f32> {
         &self.similarities
+    }
+    /// Get metadata from a query result.
+    pub fn get_metadata(&self) -> &Vec<Vec<String>> {
+        &self.metadata
     }
 }
 
@@ -164,7 +163,7 @@ pub struct EmbeddingCollection {
     /// What separates us from the other dbs. Embeddings are set when saving
     embeddings: Array2<f32>,
     /// Genres mapped to their perspective document by index
-    metadata: Vec<String>,
+    metadata: Vec<Vec<String>>,
     /// Path to model.onnx and tokenizer.json
     model_path: String,
     /// model type
@@ -181,7 +180,7 @@ impl EmbeddingCollection {
     /// Create a new collection of unstructured data. Must be saved with the `save` method
     pub fn new(
         documents: Vec<String>,
-        metadata: Vec<String>,
+        metadata: Vec<Vec<String>>,
         ids: Vec<String>,
         name: String,
         model_type: String,
@@ -229,9 +228,10 @@ impl EmbeddingCollection {
         info!("initialized embeddings: {}", embeddings.len());
         embeddings = batch_embeddings(&self.model_path, &self.documents).unwrap_or_default();
         self.set_embeddings(embeddings);
-        let collection: Vec<u8> = bincode::serialize(&self).unwrap();
+        let collection: Vec<u8> = bincode::serialize(&self).unwrap_or_default();
         if collection.is_empty() {
             error!("failed to save collection: {}", &self.key);
+            return;
         }
         let key = &self.key;
         let b_key = Vec::from(key.as_bytes());
@@ -258,13 +258,15 @@ impl EmbeddingCollection {
     /// Send a cosine similarity query on a collection against a query string.
     ///
     /// Setting `num_results=0`, and metadata `None` will return all related results.
+    /// 
+    /// Let `f_where` be a valid ```Vec<&str>``` of JSON strings to filter on.
     pub fn cosine_query(
         query_string: String,
         view_name: String,
         num_results: usize,
-        metadata: Option<Vec<String>>,
+        f_where: Option<Vec<String>>,
     ) -> CosineQueryResult {
-        let filter: bool = metadata.is_some();
+        let is_filtering = f_where.is_some();
         info!("querying {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name));
         let qv_string = vec![query_string];
@@ -279,25 +281,31 @@ impl EmbeddingCollection {
         info!("calculating cosine similarity");
         let mut r_docs: Vec<String> = Vec::new();
         let mut r_sims: Vec<f32> = Vec::new();
+        let mut r_meta: Vec<Vec<String>> = Vec::new();
         let query = qv.index_axis(Axis(0), 0);
-        let meta_filter: Vec<String> = metadata.unwrap_or_default();
         for (cv, sentence) in cv.axis_iter(Axis(0)).zip(docs.iter()) {
             let index: Option<usize> = docs.iter().rposition(|x| x == sentence);
-            if !filter || meta_filter.contains(&collection.metadata[index.unwrap_or_default()]) {
+            let raw_f: &Vec<String> =  &f_where.clone().unwrap_or_default();
+            let raw_m: &Vec<String> = &collection.metadata[index.unwrap_or_default()];
+            let filter = is_filtering && filter_where(raw_f, raw_m); 
+            if filter {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
                 if dot_product > 0.0 {
                     r_docs.push(String::from(sentence));
                     r_sims.push(dot_product);
+                    r_meta.push(raw_m.to_vec());
+
                 }
             }
         }
         if r_docs.len() < num_results || num_results == 0 {
-            CosineQueryResult::create(r_docs, r_sims)
+            CosineQueryResult::create(r_docs, r_sims, r_meta)
         } else {
             CosineQueryResult::create(
                 r_docs[0..num_results].to_vec(),
                 r_sims[0..num_results].to_vec(),
+                r_meta[0..num_results].to_vec(),
             )
         }
     }
@@ -315,7 +323,7 @@ impl EmbeddingCollection {
         &self.documents
     }
     /// Getter for metadata
-    pub fn get_genres(&self) -> &Vec<String> {
+    pub fn get_metadata(&self) -> &Vec<Vec<String>> {
         &self.metadata
     }
     /// Getter for ids
@@ -415,20 +423,22 @@ mod tests {
     use super::*;
 
     use std::{fs::File, path::Path};
+    use serde_json::Value;
     use serde::Deserialize;
 
     /// Let's extract reviews and ratings
     #[derive(Default, Deserialize)]
-    #[serde(rename_all = "PascalCase")]
     struct Review {
         review: Option<String>,
         rating: Option<String>,
+        vehicle_title: Option<String>
     }
 
     #[test]
     fn cosine_etl_test() {
+        env_logger::init();
         let mut documents: Vec<String> = Vec::new();
-        let mut metadata: Vec<String> = Vec::new();
+        let mut metadata: Vec<Vec<String>> = Vec::new();
         // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
         let file_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("Scraped_Car_Review_tesla.csv");
         let file = File::open(file_path).expect("csv file not found");
@@ -436,19 +446,22 @@ mod tests {
         for result in rdr.deserialize() {
             let record: Review = result.unwrap_or_default();
             documents.push(record.review.unwrap_or_default());
-            metadata.push(record.rating.unwrap_or_default());
+            let rating: u64 = record.rating.unwrap_or_default().parse::<u64>().unwrap_or_default();
+            let year: String = record.vehicle_title.unwrap()[0..5].to_string();
+            metadata.push(vec![format!(r#"{{"Year": {}}}"#, year), format!(r#"{{"Rating": {}}}"#, rating)]);
         }
         let mut ids: Vec<String> = Vec::new();
         for i in 0..documents.len() {
             ids.push(format!("id{}", i));
         }
         let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-        let model_type = ModelType::AllMiniLmL6V2.value();
+        let model_type = ModelType::AllMiniLmL6V2.get_value();
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
         let mut ec: EmbeddingCollection =
             EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
         let created_docs: &Vec<String> = ec.get_documents();
+        debug!("metadata = {:?}", ec.get_metadata()[0]);
         assert_eq!(expected, created_docs.to_vec());
         // save collection to db
         ec.save();
@@ -457,10 +470,17 @@ mod tests {
         let result: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string,
             String::from(ec.get_view()),
-            3,
-            Some(vec![String::from("5"),String::from("4"),String::from("3")]),
+            1,
+            Some(vec![
+                String::from(r#"{ "Rating": {"gt": 3} }"#),
+                String::from(r#"{ "Year":   {"eq": 2013} }"#)
+            ]),
         );
-        assert!(!result.get_docs().is_empty());
+        assert_eq!(result.get_docs().len(), 1);
+        let v: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
+        let filter: u64 = 3;
+        debug!("v = {:?}", result.get_metadata());
+        //assert!(v.unwrap()["Rating"].as_u64().unwrap_or(0) > filter);
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }

@@ -31,4 +31,4 @@ jobs:
     - name: build and test
       run: |
         export LMDB_USER=$USER
-        cargo build && RUST_TEST_THREADS=1 cargo test
+        cargo build && cargo clippy && RUST_TEST_THREADS=1 cargo test
