@@ -17,7 +17,7 @@ const DIMENSIONS: usize = 384;
 /// ONNX Embeddings generator
 fn generate_embeddings(
     model_path: &String,
-    data: &Vec<String>,
+    data: &[String],
 ) -> Result<Array2<f32>, ort::Error> {
     info!("creating model from {}", model_path);
     // Create the ONNX Runtime environment, enabling CPU/GPU execution providers for all sessions created in this process.
@@ -34,7 +34,7 @@ fn generate_embeddings(
         .commit_from_file(format!("{}/model.onnx", model_path))?;
     let tokenizer = Tokenizer::from_file(format!("{}/tokenizer.json", model_path))?;
     // Encode our input strings. `encode_batch` will pad each input to be the same length.
-    let encodings = tokenizer.encode_batch(data.clone(), false)?;
+    let encodings = tokenizer.encode_batch(data.to_vec(), false)?;
     // Get the padded length of each encoding.
     let padded_token_length = encodings[0].len();
     // Get our token IDs & mask as a flattened array.
@@ -62,7 +62,7 @@ fn generate_embeddings(
 /// Batch embeddings with a batch size of 100 elements.
 pub fn batch_embeddings(
     model_path: &String,
-    data: &Vec<String>,
+    data: &[String],
 ) -> Result<Array2<f32>, ort::Error> {
     info!("batching length {} from {}", data.len(), model_path);
     let mut data_array: ndarray::ArrayBase<OwnedRepr<f32>, ndarray::Dim<[usize; 2]>> =
@@ -74,7 +74,7 @@ pub fn batch_embeddings(
         info!("{} encodings remaining", length-begin);
         let end = (BATCH_SIZE * multiplier) - 1;
         let embeddings =
-            generate_embeddings(model_path, &data[begin..end].to_vec()).unwrap_or_default();
+            generate_embeddings(model_path, &data[begin..end]).unwrap_or_default();
         for index1 in begin..end {
             for index2 in 0..DIMENSIONS {
                 data_array[[index1, index2]] = embeddings[[index1 - begin, index2]];
@@ -85,7 +85,7 @@ pub fn batch_embeddings(
     }
     info!("{} encodings remaining", length-begin);
     let embeddings =
-        generate_embeddings(model_path, &data[begin..length].to_vec()).unwrap_or_default();
+        generate_embeddings(model_path, &data[begin..length]).unwrap_or_default();
     for index1 in 0..length - begin {
         for index2 in 0..DIMENSIONS {
             data_array[[(index1 + begin), index2]] = embeddings[[index1, index2]];

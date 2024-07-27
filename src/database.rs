@@ -82,7 +82,7 @@ impl DatabaseEnvironment {
         let txn = new_txn.unwrap();
         {
             let db: Database = txn.bind(h);
-            let pair: Vec<(&Vec<u8>, &Vec<u8>)> = vec![(&k, v)];
+            let pair: Vec<(&Vec<u8>, &Vec<u8>)> = vec![(k, v)];
             for &(key, value) in pair.iter() {
                 db.set(key, value)
                     .unwrap_or_else(|_| error!("failed to set key: {:?}", k));
@@ -170,7 +170,7 @@ impl DatabaseEnvironment {
 /// of the map size . Setting the map_size to a low value
 ///
 /// will cause degraded performance.
-pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &Vec<u8>) {
+pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) {
     let s = System::new_all();
     let chunk_size = s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO;
     let mut writes: usize = 0;

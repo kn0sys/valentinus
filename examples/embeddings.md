@@ -14,7 +14,7 @@
 
     fn main() {
         let mut documents: Vec<String> = Vec::new();
-        let mut metadata: Vec<String> = Vec::new();
+        let mut metadata: Vec<Vec<String>> = Vec::new();
         // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
         let file_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("Scraped_Car_Review_tesla.csv");
         let file = File::open(file_path).expect("csv file not found");
@@ -23,7 +23,8 @@
             let record: Review = result.unwrap_or_default();
             documents.push(record.review.unwrap_or_default());
             let rating: u64 = record.rating.unwrap_or_default().parse::<u64>().unwrap_or_default();
-            metadata.push(format!(r#"{{"Rating": {} }}"#, rating));
+            let year: String = record.vehicle_title.unwrap()[0..5].to_string();
+            metadata.push(vec![format!(r#"{{"Year": {}}}"#, year), format!(r#"{{"Rating": {}}}"#, rating)]);
         }
         let mut ids: Vec<String> = Vec::new();
         for i in 0..documents.len() {
@@ -44,13 +45,19 @@
         let result: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string,
             String::from(ec.get_view()),
-            5,
-            Some(String::from(r#"{ "Rating": {"gt": 3} }"#)),
+            10,
+            Some(vec![
+                String::from(r#"{ "Year":   {"eq": 2017} }"#),
+                String::from(r#"{ "Rating": {"gt": 3} }"#),
+            ]),
         );
-        assert_eq!(result.get_docs().len(), 5);
-        let v: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0]);
-        let filter: u64 = 3;
-        assert!(v.unwrap()["Rating"].as_u64().unwrap_or(0) > filter);
+        assert_eq!(result.get_docs().len(), 10);
+        let v_year: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
+        let v_rating: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][1]);
+        let rating_filter: u64 = 3;
+        let year_filter: u64 = 2017;
+        assert!(v_rating.unwrap()["Rating"].as_u64().unwrap_or(0) > rating_filter);
+        assert_eq!(v_year.unwrap()["Year"].as_u64().unwrap_or(0), year_filter);
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }

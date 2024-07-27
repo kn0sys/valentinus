@@ -58,15 +58,16 @@
 //!         ]),
 //!     );
 //!     assert_eq!(result.get_docs().len(), 5);
-//!     let v: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
-//!     let filter: u64 = 3;
-//!     assert!(v.unwrap()["Rating"].as_u64().unwrap_or(0) > filter);
+//!     let rating_value: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
+//!     let year_value: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][1]);
+//!     let rating_filter: u64 = 3;
+//!     let year_filter: u64 = 2017;
+//!     assert!(rating_value.unwrap()["Rating"].as_u64().unwrap_or(0) > rating_filter);
+//!     assert_eq!(year_value.unwrap()["Year"].as_u64().unwrap_or(0), year_filter);
 //!     // remove collection from db
 //!     EmbeddingCollection::delete(String::from(ec.get_view()));
 //! }
 //! ```
-
-use std::u64;
 
 use lazy_static::lazy_static;
 use ndarray::Array2;
@@ -76,7 +77,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{ database::*, onnx::*, filter::filter_where };
+use crate::{ database::*, onnx::*, md2f::filter_where };
 use log::*;
 
 lazy_static! {
@@ -259,7 +260,9 @@ impl EmbeddingCollection {
     ///
     /// Setting `num_results=0`, and metadata `None` will return all related results.
     /// 
-    /// Let `f_where` be a valid ```Vec<&str>``` of JSON strings to filter on.
+    /// Let `f_where` be a valid ```Vec<&str>``` of JSON strings to filter on. Valid
+    ///
+    /// filter operations are eq,gt,gte,lt,lte and in for string arrays.
     pub fn cosine_query(
         query_string: String,
         view_name: String,
@@ -436,7 +439,6 @@ mod tests {
 
     #[test]
     fn cosine_etl_test() {
-        env_logger::init();
         let mut documents: Vec<String> = Vec::new();
         let mut metadata: Vec<Vec<String>> = Vec::new();
         // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
@@ -461,7 +463,6 @@ mod tests {
         let mut ec: EmbeddingCollection =
             EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
         let created_docs: &Vec<String> = ec.get_documents();
-        debug!("metadata = {:?}", ec.get_metadata()[0]);
         assert_eq!(expected, created_docs.to_vec());
         // save collection to db
         ec.save();
@@ -470,17 +471,19 @@ mod tests {
         let result: CosineQueryResult = EmbeddingCollection::cosine_query(
             query_string,
             String::from(ec.get_view()),
-            1,
+            10,
             Some(vec![
+                String::from(r#"{ "Year":   {"eq": 2017} }"#),
                 String::from(r#"{ "Rating": {"gt": 3} }"#),
-                String::from(r#"{ "Year":   {"eq": 2013} }"#)
             ]),
         );
-        assert_eq!(result.get_docs().len(), 1);
-        let v: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
-        let filter: u64 = 3;
-        debug!("v = {:?}", result.get_metadata());
-        //assert!(v.unwrap()["Rating"].as_u64().unwrap_or(0) > filter);
+        assert_eq!(result.get_docs().len(), 10);
+        let v_year: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
+        let v_rating: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][1]);
+        let rating_filter: u64 = 3;
+        let year_filter: u64 = 2017;
+        assert!(v_rating.unwrap()["Rating"].as_u64().unwrap_or(0) > rating_filter);
+        assert_eq!(v_year.unwrap()["Year"].as_u64().unwrap_or(0), year_filter);
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }
