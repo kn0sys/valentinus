@@ -262,7 +262,9 @@ impl EmbeddingCollection {
     /// 
     /// Let `f_where` be a valid ```Vec<&str>``` of JSON strings to filter on. Valid
     ///
-    /// filter operations are eq,gt,gte,lt,lte and in for string arrays.
+    /// filter operations are eq,gt,gte,lt,lte and in for string arrays. Configure
+    /// 
+    /// parallel threads with `ONNX_PARALLEL_THREADS=X`
     pub fn cosine_query(
         query_string: String,
         view_name: String,
@@ -290,7 +292,7 @@ impl EmbeddingCollection {
             let index: Option<usize> = docs.iter().rposition(|x| x == sentence);
             let raw_f: &Vec<String> =  &f_where.clone().unwrap_or_default();
             let raw_m: &Vec<String> = &collection.metadata[index.unwrap_or_default()];
-            let filter = is_filtering && filter_where(raw_f, raw_m); 
+            let filter = !is_filtering || filter_where(raw_f, raw_m); 
             if filter {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
@@ -470,9 +472,9 @@ mod tests {
         // save collection to db
         ec.save();
         // query the collection
-        let query_string: String = String::from("Find the best reviews.");
+        let query_string: &String = &String::from("Find the best reviews.");
         let result: CosineQueryResult = EmbeddingCollection::cosine_query(
-            query_string,
+            String::from(query_string),
             String::from(ec.get_view()),
             10,
             Some(vec![
@@ -487,6 +489,13 @@ mod tests {
         let year_filter: u64 = 2017;
         assert!(v_rating.unwrap()["Rating"].as_u64().unwrap_or(0) > rating_filter);
         assert_eq!(v_year.unwrap()["Year"].as_u64().unwrap_or(0), year_filter);
+        let no_filter_result: CosineQueryResult = EmbeddingCollection::cosine_query(
+            String::from(query_string),
+            String::from(ec.get_view()),
+            5,
+            None,
+        );
+        assert_eq!(no_filter_result.get_docs().len(), 5);
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
     }

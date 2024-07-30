@@ -37,4 +37,5 @@ jobs:
     - name: etl test
       run: |
         export LMDB_USER=$USER
+        ONNX_PARALLEL_THREADS=2
         cargo test embeddings::tests::cosine_etl_test -- --exact
