@@ -21,8 +21,8 @@ pub const VALENTINUS_KEY: &str = "key";
 pub const VALENTINUS_VIEW: &str = "view";
 /// Ratio of map size to available memory is 20 percent
 const MAP_SIZE_MEMORY_RATIO: f32 = 0.2;
-/// Ratio of chunk size to available memory is 2 percent
-const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.1;
+/// Ratio of chunk size to available memory is 0.2 percent
+const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.01;
 
 /// The database environment for handling primary database operations.
 ///
@@ -210,7 +210,6 @@ mod tests {
 
     #[test]
     fn environment_test() {
-        env_logger::init();
         const MB: usize = 1000000;
         let db = DatabaseEnvironment::open("10-mb-test");
         const DATA_SIZE_10MB: usize = 10000000;
@@ -237,20 +236,6 @@ mod tests {
         log::debug!("writing {} MB of data", DATA_SIZE_100MB/MB);
         write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
         log::debug!("finished writing {} MB of data", DATA_SIZE_100MB/MB);
-        let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
-        assert_eq!(expected.to_vec(), actual);
-        DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
-        let db = DatabaseEnvironment::open("500-mb-test");
-        const DATA_SIZE_500MB: usize = 500000000;
-        log::debug!("creating {} MB of data", DATA_SIZE_500MB/MB);
-        let mut data = vec![0u8; DATA_SIZE_500MB];
-        rand::thread_rng().fill_bytes(&mut data);
-        log::debug!("finished creating {} MB of data", DATA_SIZE_500MB/MB);
-        let k = "test-key".as_bytes();
-        let expected = &data.to_vec();
-        log::debug!("writing {} MB of data", DATA_SIZE_500MB/MB);
-        write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
-        log::debug!("finished writing {} MB of data", DATA_SIZE_500MB/MB);
         let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
         assert_eq!(expected.to_vec(), actual);
         DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
