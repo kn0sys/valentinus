@@ -306,7 +306,6 @@ fn process_u64_filter(raw_f: &str, raw_m: &str) -> bool {
 ///
 /// on a valid match. The equivalent of an SQL `where` clause.
 pub fn filter_where(raw_f: &[String], raw_m: &[String]) -> bool {
-    log::debug!("md {:?}", raw_f);
     let mut t_count: usize = 0;
     let length = raw_f.len();
     for m in raw_m {

@@ -449,7 +449,10 @@ mod tests {
             let record: Review = result.unwrap_or_default();
             documents.push(record.review.unwrap_or_default());
             let rating: u64 = record.rating.unwrap_or_default().parse::<u64>().unwrap_or_default();
-            let year: String = record.vehicle_title.unwrap()[0..5].to_string();
+            let mut year: String = record.vehicle_title.unwrap_or_default();
+            if !year.is_empty() {
+                year = year[0..5].to_string();
+            }
             metadata.push(vec![format!(r#"{{"Year": {}}}"#, year), format!(r#"{{"Rating": {}}}"#, rating)]);
         }
         let mut ids: Vec<String> = Vec::new();
