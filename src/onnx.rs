@@ -14,12 +14,19 @@ pub const BATCH_SIZE: usize = 100;
 /// Dimensions for the all-mini-lm-l6 model
 const DIMENSIONS: usize = 384;
 
+/// Environment variable for parallel execution threads count
+const ONNX_PARALLEL_THREADS: &str = "ONNX_PARALLEL_THREADS"; 
+
 /// ONNX Embeddings generator
 fn generate_embeddings(
     model_path: &String,
     data: &[String],
 ) -> Result<Array2<f32>, ort::Error> {
-    info!("creating model from {}", model_path);
+    let threads: usize = match std::env::var(ONNX_PARALLEL_THREADS) {
+        Err(_) => 1,
+        Ok(t) => t.parse::<usize>().unwrap_or(1),
+    };
+    info!("generating encodings from {} with {} threads", model_path, threads);
     // Create the ONNX Runtime environment, enabling CPU/GPU execution providers for all sessions created in this process.
     ort::init()
         .with_name("valentinus")
@@ -30,7 +37,8 @@ fn generate_embeddings(
     let session = Session::builder()
         .unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level1)?
-        .with_intra_threads(1)?
+        .with_parallel_execution(threads > 1)?
+        .with_intra_threads(threads)?
         .commit_from_file(format!("{}/model.onnx", model_path))?;
     let tokenizer = Tokenizer::from_file(format!("{}/tokenizer.json", model_path))?;
     // Encode our input strings. `encode_batch` will pad each input to be the same length.
