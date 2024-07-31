@@ -175,18 +175,16 @@ pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) {
     let chunk_size = (s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO) as usize;
     let mut writes: usize = 1;
     let mut index: usize = 0;
-    let mut key_counter: usize = 0;
     let length = v.len();
     loop {
         let mut old_key: Vec<u8> = k.to_vec();
-        let mut append: Vec<u8> = (key_counter).to_be_bytes().to_vec();
+        let mut append: Vec<u8> = (writes-1).to_be_bytes().to_vec();
         old_key.append(&mut append);
         if length > chunk_size && (length - index > chunk_size) {
             // write chunks until the last value which is smaller than chunk_size
             DatabaseEnvironment::write(e, h, &old_key, &v[index..(chunk_size*writes)].to_vec());
             index += chunk_size;
             writes += 1;
-            key_counter += 1;
         } else {
             DatabaseEnvironment::write(e, h, &old_key, &v[index..length].to_vec());
             break;
