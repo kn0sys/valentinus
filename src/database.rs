@@ -165,35 +165,30 @@ impl DatabaseEnvironment {
     }
 }
 
-/// Write chunks to the database. This function uses ten percent
+/// Write chunks to the database. This function uses one percent
 ///
 /// of the map size . Setting the map_size to a low value
 ///
 /// will cause degraded performance.
 pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) {
     let s = System::new_all();
-    let chunk_size = s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO;
-    let mut writes: usize = 0;
+    let chunk_size = (s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO) as usize;
+    let mut writes: usize = 1;
     let mut index: usize = 0;
     let mut key_counter: usize = 0;
-    let mut chunk: Vec<u8> = Vec::new();
+    let length = v.len();
     loop {
-        while writes < chunk_size as usize {
-            chunk.push(v[index]);
-            if index == v.len() - 1 {
-                break;
-            }
-            index += 1;
-            writes += 1;
-        }
-        writes = 0; // reset chunks
         let mut old_key: Vec<u8> = k.to_vec();
         let mut append: Vec<u8> = (key_counter).to_be_bytes().to_vec();
         old_key.append(&mut append);
-        DatabaseEnvironment::write(e, h, &old_key, &chunk);
-        key_counter += 1;
-        chunk = Default::default(); // empty chunk container for next write
-        if index == v.len() - 1 {
+        if length > chunk_size && (length - index > chunk_size) {
+            // write chunks until the last value which is smaller than chunk_size
+            DatabaseEnvironment::write(e, h, &old_key, &v[index..(chunk_size*writes)].to_vec());
+            index += chunk_size;
+            writes += 1;
+            key_counter += 1;
+        } else {
+            DatabaseEnvironment::write(e, h, &old_key, &v[index..length].to_vec());
             break;
         }
     }
