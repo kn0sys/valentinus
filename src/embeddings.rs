@@ -9,7 +9,7 @@
 //! use serde_json::Value;
 //! use std::{fs::File, path::Path};
 //! use serde::Deserialize;
-//! 
+//!
 //! /// Let's extract reviews and ratings
 //! #[derive(Default, Deserialize)]
 //! struct Review {
@@ -17,7 +17,7 @@
 //!     rating: Option<String>,
 //!     vehicle_title: Option<String>,
 //! }
-//! 
+//!
 //! fn foo() {
 //!     let mut documents: Vec<String> = Vec::new();
 //!     let mut metadata: Vec<Vec<String>> = Vec::new();
@@ -69,15 +69,16 @@
 //! }
 //! ```
 
+use distance::L2Dist;
 use lazy_static::lazy_static;
-use ndarray::Array2;
-use ndarray::Axis;
+use linfa_nn::*;
+use ndarray::*;
 use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{ database::*, onnx::*, md2f::filter_where };
+use crate::{database::*, md2f::filter_where, onnx::*};
 use log::*;
 
 lazy_static! {
@@ -129,7 +130,11 @@ pub struct CosineQueryResult {
 
 impl CosineQueryResult {
     /// Used to create a result from `cosine_query`.
-    pub fn create(documents: Vec<String>, similarities: Vec<f32>, metadata: Vec<Vec<String>>) -> CosineQueryResult {
+    pub fn create(
+        documents: Vec<String>,
+        similarities: Vec<f32>,
+        metadata: Vec<Vec<String>>,
+    ) -> CosineQueryResult {
         CosineQueryResult {
             documents,
             similarities,
@@ -259,11 +264,11 @@ impl EmbeddingCollection {
     /// Send a cosine similarity query on a collection against a query string.
     ///
     /// Setting `num_results=0`, and metadata `None` will return all related results.
-    /// 
+    ///
     /// Let `f_where` be a valid ```Vec<&str>``` of JSON strings to filter on. Valid
     ///
     /// filter operations are eq,gt,gte,lt,lte and in for string arrays. Configure
-    /// 
+    ///
     /// parallel threads with `ONNX_PARALLEL_THREADS=X`
     pub fn cosine_query(
         query_string: String,
@@ -290,17 +295,15 @@ impl EmbeddingCollection {
         let query = qv.index_axis(Axis(0), 0);
         for (cv, sentence) in cv.axis_iter(Axis(0)).zip(docs.iter()) {
             let index: Option<usize> = docs.iter().rposition(|x| x == sentence);
-            let raw_f: &Vec<String> =  &f_where.clone().unwrap_or_default();
+            let raw_f: &Vec<String> = &f_where.clone().unwrap_or_default();
             let raw_m: &Vec<String> = &collection.metadata[index.unwrap_or_default()];
-            let filter = !is_filtering || filter_where(raw_f, raw_m); 
-            if filter {
+            if !is_filtering || filter_where(raw_f, raw_m) {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
                 if dot_product > 0.0 {
                     r_docs.push(String::from(sentence));
                     r_sims.push(dot_product);
                     r_meta.push(raw_m.to_vec());
-
                 }
             }
         }
@@ -313,6 +316,34 @@ impl EmbeddingCollection {
                 r_meta[0..num_results].to_vec(),
             )
         }
+    }
+    /// Calculate the nearest vector using KdTree with eclidean distance.
+    /// 
+    /// Returns `String` of the document matching the nearest embedding.
+    pub fn nearest_query(query_string: String, view_name: String) -> String {
+        info!("querying {} embedding collection for nearest", view_name);
+        let collection: EmbeddingCollection = find(None, Some(view_name));
+        let qv_string = vec![query_string];
+        let qv_output = batch_embeddings(&collection.model_path, &qv_string);
+        if qv_output.is_err() {
+            error!("failed to generate embeddings for query vector");
+            return Default::default();
+        }
+        let qv = qv_output.unwrap_or_default();
+        let cv = collection.embeddings;
+        info!("computing nearest embedding");
+        // Kdtree using Euclidean distance
+        let nn = CommonNearestNeighbour::KdTree
+            .from_batch(&cv, L2Dist)
+            .unwrap();
+        // Compute the nearest point to the query vector
+        let nearest = nn.k_nearest(qv.index_axis(Axis(0), 0), 1).unwrap();
+        let location = cv.axis_iter(Axis(0)).position(|x| x.to_vec() == nearest[0].0.to_vec());
+        if location.is_none() {
+            log::error!("could not compute nearest");
+            return Default::default();
+        }
+        String::from(&collection.documents[location.unwrap()])
     }
     /// Delete a collection from the database
     pub fn delete(view_name: String) {
@@ -427,16 +458,16 @@ mod tests {
 
     use super::*;
 
-    use std::{fs::File, path::Path};
-    use serde_json::Value;
     use serde::Deserialize;
+    use serde_json::Value;
+    use std::{fs::File, path::Path};
 
     /// Let's extract reviews and ratings
     #[derive(Default, Deserialize)]
     struct Review {
         review: Option<String>,
         rating: Option<String>,
-        vehicle_title: Option<String>
+        vehicle_title: Option<String>,
     }
 
     #[test]
@@ -444,18 +475,27 @@ mod tests {
         let mut documents: Vec<String> = Vec::new();
         let mut metadata: Vec<Vec<String>> = Vec::new();
         // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
-        let file_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("Scraped_Car_Review_tesla.csv");
+        let file_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("Scraped_Car_Review_tesla.csv");
         let file = File::open(file_path).expect("csv file not found");
         let mut rdr = csv::Reader::from_reader(file);
         for result in rdr.deserialize() {
             let record: Review = result.unwrap_or_default();
             documents.push(record.review.unwrap_or_default());
-            let rating: u64 = record.rating.unwrap_or_default().parse::<u64>().unwrap_or_default();
+            let rating: u64 = record
+                .rating
+                .unwrap_or_default()
+                .parse::<u64>()
+                .unwrap_or_default();
             let mut year: String = record.vehicle_title.unwrap_or_default();
             if !year.is_empty() {
                 year = year[0..5].to_string();
             }
-            metadata.push(vec![format!(r#"{{"Year": {}}}"#, year), format!(r#"{{"Rating": {}}}"#, rating)]);
+            metadata.push(vec![
+                format!(r#"{{"Year": {}}}"#, year),
+                format!(r#"{{"Rating": {}}}"#, rating),
+            ]);
         }
         let mut ids: Vec<String> = Vec::new();
         for i in 0..documents.len() {
@@ -483,8 +523,10 @@ mod tests {
             ]),
         );
         assert_eq!(result.get_docs().len(), 10);
-        let v_year: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
-        let v_rating: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][1]);
+        let v_year: Result<Value, serde_json::Error> =
+            serde_json::from_str(&result.get_metadata()[0][0]);
+        let v_rating: Result<Value, serde_json::Error> =
+            serde_json::from_str(&result.get_metadata()[0][1]);
         let rating_filter: u64 = 3;
         let year_filter: u64 = 2017;
         assert!(v_rating.unwrap()["Rating"].as_u64().unwrap_or(0) > rating_filter);
@@ -498,5 +540,48 @@ mod tests {
         assert_eq!(no_filter_result.get_docs().len(), 5);
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()));
+    }
+
+    #[test]
+    fn nearest_test() {
+        let slice_documents: [&str; 10] = [
+        "The latest iPhone model comes with impressive features and a powerful camera.",
+        "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
+        "Einstein's theory of relativity revolutionized our understanding of space and time.",
+        "Traditional Italian pizza is famous for its thin crust, fresh ingredients, and wood-fired ovens.",
+        "The American Revolution had a profound impact on the birth of the United States as a nation.",
+        "Regular exercise and a balanced diet are essential for maintaining good physical health.",
+        "Leonardo da Vinci's Mona Lisa is considered one of the most iconic paintings in art history.",
+        "Climate change poses a significant threat to the planet's ecosystems and biodiversity.",
+        "Startup companies often face challenges in securing funding and scaling their operations.",
+        "Beethoven's Symphony No. 9 is celebrated for its powerful choral finale, 'Ode to Joy.'",
+        ];
+        let mut documents: Vec<String> = Vec::new();
+        for slice in 0..slice_documents.len() {
+            documents.push(String::from(slice_documents[slice]));
+        }
+        // no metadata for nearest query
+        let metadata: Vec<String> = Vec::new();
+        let mut ids: Vec<String> = Vec::new();
+        for i in 0..documents.len() {
+            ids.push(format!("id{}", i));
+        }
+        let name = String::from("test_collection");
+        let expected: Vec<String> = documents.clone();
+        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+        let model_type = ModelType::AllMiniLmL6V2.get_value();
+        let mut ec: EmbeddingCollection = EmbeddingCollection::new(
+            documents.clone(), vec![metadata], ids, name, model_type, model_path
+        );
+        let created_docs: &Vec<String> = ec.get_documents();
+        assert_eq!(expected, created_docs.to_vec());
+        // save collection to db
+        ec.save();
+        // query the collection
+        let query_string: String = String::from("Find me some delicious food!");
+        let result: String = EmbeddingCollection::nearest_query(query_string, String::from(&ec.view));
+        assert_eq!(result, documents[3]);
+        // remove collection from db
+        EmbeddingCollection::delete(String::from(&ec.view));
     }
 }
