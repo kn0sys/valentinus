@@ -178,11 +178,11 @@ pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) {
     let length = v.len();
     loop {
         let mut old_key: Vec<u8> = k.to_vec();
-        let mut append: Vec<u8> = (writes-1).to_be_bytes().to_vec();
+        let mut append: Vec<u8> = (writes - 1).to_be_bytes().to_vec();
         old_key.append(&mut append);
         if length > chunk_size && (length - index > chunk_size) {
             // write chunks until the last value which is smaller than chunk_size
-            DatabaseEnvironment::write(e, h, &old_key, &v[index..(chunk_size*writes)].to_vec());
+            DatabaseEnvironment::write(e, h, &old_key, &v[index..(chunk_size * writes)].to_vec());
             index += chunk_size;
             writes += 1;
         } else {
@@ -203,32 +203,23 @@ mod tests {
 
     #[test]
     fn environment_test() {
-        const MB: usize = 1000000;
         let db = DatabaseEnvironment::open("10-mb-test");
         const DATA_SIZE_10MB: usize = 10000000;
-        log::debug!("creating {} MB of data", DATA_SIZE_10MB/MB);
         let mut data = vec![0u8; DATA_SIZE_10MB];
         rand::thread_rng().fill_bytes(&mut data);
-        log::debug!("finished creating {} MB of data", DATA_SIZE_10MB/MB);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();
-        log::debug!("writing {} MB of data", DATA_SIZE_10MB/MB);
         write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
-        log::debug!("finished writing {} MB of data", DATA_SIZE_10MB/MB);
         let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
         assert_eq!(expected.to_vec(), actual);
         DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
         let db = DatabaseEnvironment::open("100-mb-test");
         const DATA_SIZE_100MB: usize = 100000000;
-        log::debug!("creating {} MB of data", DATA_SIZE_100MB/MB);
         let mut data = vec![0u8; DATA_SIZE_100MB];
         rand::thread_rng().fill_bytes(&mut data);
-        log::debug!("finished creating {} MB of data", DATA_SIZE_100MB/MB);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();
-        log::debug!("writing {} MB of data", DATA_SIZE_100MB/MB);
         write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
-        log::debug!("finished writing {} MB of data", DATA_SIZE_100MB/MB);
         let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
         assert_eq!(expected.to_vec(), actual);
         DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));

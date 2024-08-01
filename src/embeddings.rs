@@ -84,9 +84,9 @@ lazy_static! {
 }
 
 /// Identifier for model used with the collection.
-/// 
+///
 /// Be sure to set `VALENTINUS_CUSTOM_DIM` environment
-/// 
+///
 /// variable to the number of dimensions for that model.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub enum ModelType {
@@ -98,8 +98,6 @@ pub enum ModelType {
     /// You can also use any model you like
     Custom,
 }
-
-
 
 /// Use to write the vector of keys and indexes
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -312,7 +310,7 @@ impl EmbeddingCollection {
         }
     }
     /// Calculate the nearest vector using KdTree with eclidean distance.
-    /// 
+    ///
     /// Returns `String` of the document matching the nearest embedding.
     pub fn nearest_query(query_string: String, view_name: String) -> String {
         info!("querying {} embedding collection for nearest", view_name);
@@ -332,7 +330,9 @@ impl EmbeddingCollection {
             .unwrap();
         // Compute the nearest point to the query vector
         let nearest = nn.k_nearest(qv.index_axis(Axis(0), 0), 1).unwrap();
-        let location = cv.axis_iter(Axis(0)).position(|x| x.to_vec() == nearest[0].0.to_vec());
+        let location = cv
+            .axis_iter(Axis(0))
+            .position(|x| x.to_vec() == nearest[0].0.to_vec());
         if location.is_none() {
             log::error!("could not compute nearest");
             return Default::default();
@@ -565,7 +565,12 @@ mod tests {
         let model_path = String::from("all-Mini-LM-L6-v2_onnx");
         let model_type = ModelType::AllMiniLmL6V2;
         let mut ec: EmbeddingCollection = EmbeddingCollection::new(
-            documents.clone(), vec![metadata], ids, name, model_type, model_path
+            documents.clone(),
+            vec![metadata],
+            ids,
+            name,
+            model_type,
+            model_path,
         );
         let created_docs: &Vec<String> = ec.get_documents();
         assert_eq!(expected, created_docs.to_vec());
@@ -573,7 +578,8 @@ mod tests {
         ec.save();
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
-        let result: String = EmbeddingCollection::nearest_query(query_string, String::from(&ec.view));
+        let result: String =
+            EmbeddingCollection::nearest_query(query_string, String::from(&ec.view));
         assert_eq!(result, documents[3]);
         // remove collection from db
         EmbeddingCollection::delete(String::from(&ec.view));

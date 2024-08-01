@@ -309,7 +309,7 @@ pub fn filter_where(raw_f: &[String], raw_m: &[String]) -> bool {
     let mut t_count: usize = 0;
     let length = raw_f.len();
     for m in raw_m {
-        for filter in raw_f{
+        for filter in raw_f {
             let tsf_result = process_string_filter(filter, m);
             if tsf_result {
                 t_count += 1;

@@ -18,18 +18,18 @@ const DEFUALT_DIMENSIONS: usize = 384;
 const VALENTINUS_CUSTOM_DIM: &str = "VALENTINUS_CUSTOM_DIM";
 
 /// Environment variable for parallel execution threads count
-const ONNX_PARALLEL_THREADS: &str = "ONNX_PARALLEL_THREADS"; 
+const ONNX_PARALLEL_THREADS: &str = "ONNX_PARALLEL_THREADS";
 
 /// ONNX Embeddings generator
-fn generate_embeddings(
-    model_path: &String,
-    data: &[String],
-) -> Result<Array2<f32>, ort::Error> {
+fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f32>, ort::Error> {
     let threads: usize = match std::env::var(ONNX_PARALLEL_THREADS) {
         Err(_) => 1,
         Ok(t) => t.parse::<usize>().unwrap_or(1),
     };
-    info!("generating encodings from {} with {} threads", model_path, threads);
+    info!(
+        "generating encodings from {} with {} threads",
+        model_path, threads
+    );
     // Create the ONNX Runtime environment, enabling CPU/GPU execution providers for all sessions created in this process.
     ort::init()
         .with_name("valentinus")
@@ -71,10 +71,7 @@ fn generate_embeddings(
 }
 
 /// Batch embeddings with a batch size of 100 elements.
-pub fn batch_embeddings(
-    model_path: &String,
-    data: &[String],
-) -> Result<Array2<f32>, ort::Error> {
+pub fn batch_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f32>, ort::Error> {
     info!("batching length {} from {}", data.len(), model_path);
     let dimensions: usize = match std::env::var(VALENTINUS_CUSTOM_DIM) {
         Err(_) => DEFUALT_DIMENSIONS,
@@ -86,10 +83,9 @@ pub fn batch_embeddings(
     let mut multiplier: usize = 1;
     let length = data.len();
     while length - begin > BATCH_SIZE {
-        info!("{} encodings remaining", length-begin);
+        info!("{} encodings remaining", length - begin);
         let end = (BATCH_SIZE * multiplier) - 1;
-        let embeddings =
-            generate_embeddings(model_path, &data[begin..end]).unwrap_or_default();
+        let embeddings = generate_embeddings(model_path, &data[begin..end]).unwrap_or_default();
         for index1 in begin..end {
             for index2 in 0..dimensions {
                 data_array[[index1, index2]] = embeddings[[index1 - begin, index2]];
@@ -98,9 +94,8 @@ pub fn batch_embeddings(
         begin += BATCH_SIZE;
         multiplier += 1;
     }
-    info!("{} encodings remaining", length-begin);
-    let embeddings =
-        generate_embeddings(model_path, &data[begin..length]).unwrap_or_default();
+    info!("{} encodings remaining", length - begin);
+    let embeddings = generate_embeddings(model_path, &data[begin..length]).unwrap_or_default();
     for index1 in 0..length - begin {
         for index2 in 0..dimensions {
             data_array[[(index1 + begin), index2]] = embeddings[[index1, index2]];
