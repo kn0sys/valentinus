@@ -31,7 +31,7 @@
             ids.push(format!("id{}", i));
         }
         let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-        let model_type = ModelType::AllMiniLmL6V2.get_value();
+        let model_type = ModelType::AllMiniLmL6V2;
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
         let mut ec: EmbeddingCollection =

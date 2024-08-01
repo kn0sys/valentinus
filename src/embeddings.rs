@@ -1,7 +1,5 @@
 #![deny(missing_docs)]
 
-//! Library for handling embeddings.
-//!
 //! ## Example
 //!
 //! ```rust
@@ -37,7 +35,7 @@
 //!         ids.push(format!("id{}", i));
 //!     }
 //!     let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-//!     let model_type = ModelType::AllMiniLmL6V2.get_value();
+//!     let model_type = ModelType::AllMiniLmL6V2;
 //!     let name = String::from("test_collection");
 //!     let expected: Vec<String> = documents.clone();
 //!     let mut ec: EmbeddingCollection =
@@ -90,26 +88,18 @@ lazy_static! {
 /// Be sure to set `VALENTINUS_CUSTOM_DIM` environment
 /// 
 /// variable to the number of dimensions for that model.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub enum ModelType {
     /// AllMiniLmL12V2 model
     AllMiniLmL12V2,
     /// AllMiniLmL6V2 model
+    #[default]
     AllMiniLmL6V2,
     /// You can also use any model you like
     Custom,
 }
 
-impl ModelType {
-    /// Return `ModelType` as a string value.
-    pub fn get_value(&self) -> String {
-        match *self {
-            Self::AllMiniLmL12V2 => String::from("AllMiniLmL12V2"),
-            Self::AllMiniLmL6V2 => String::from("AllMiniLmL6V2"),
-            Self::Custom => String::from("Custom"),
-        }
-    }
-}
+
 
 /// Use to write the vector of keys and indexes
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -177,7 +167,7 @@ pub struct EmbeddingCollection {
     /// Path to model.onnx and tokenizer.json
     model_path: String,
     /// model type
-    model_type: String,
+    model_type: ModelType,
     /// Ids for each document
     ids: Vec<String>,
     /// Key for the collection itself. Keys are recorded as `keys` as a `Vec<String>`
@@ -193,7 +183,7 @@ impl EmbeddingCollection {
         metadata: Vec<Vec<String>>,
         ids: Vec<String>,
         name: String,
-        model_type: String,
+        model_type: ModelType,
         model_path: String,
     ) -> EmbeddingCollection {
         if !VIEWS_NAMING_CHECK.is_match(&name) {
@@ -218,13 +208,13 @@ impl EmbeddingCollection {
         let view: String = format!("{}-{}", VALENTINUS_VIEW, name);
         EmbeddingCollection {
             documents,
-            embeddings: Default::default(),
             metadata,
             ids,
             key,
             view,
             model_path,
             model_type,
+            ..Default::default()
         }
     }
     /// Save a collection to the database. Error if the key already exists.
@@ -506,7 +496,7 @@ mod tests {
             ids.push(format!("id{}", i));
         }
         let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-        let model_type = ModelType::AllMiniLmL6V2.get_value();
+        let model_type = ModelType::AllMiniLmL6V2;
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
         let mut ec: EmbeddingCollection =
@@ -573,7 +563,7 @@ mod tests {
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
         let model_path = String::from("all-Mini-LM-L6-v2_onnx");
-        let model_type = ModelType::AllMiniLmL6V2.get_value();
+        let model_type = ModelType::AllMiniLmL6V2;
         let mut ec: EmbeddingCollection = EmbeddingCollection::new(
             documents.clone(), vec![metadata], ids, name, model_type, model_path
         );
