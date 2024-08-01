@@ -21,6 +21,16 @@ next generation vector db built with lmdb bindings
 git clone https://github.com/kn0sys/valentinus && cd valentinus
 ```
 
+### optional environment variables
+
+| var| usage | default |
+|----|-------| --------|
+|`LMDB_USER` | working directory of the user for database | $USER|
+|`LMDB_MAP_SIZE` | Sets max environment size, i.e. size in memory/disk of all data  | 20% of available memory |
+|`ONNX_PARALLEL_THREADS` | parallel execution mode for this session | 1 |
+|`VALENTINUS_CUSTOM_DIM` | embeddings dimensions for custom models | all-mini-lm-6 -> 384 |
+
+
 # tests
 
 * Note: all tests currently require the `all-Mini-LM-L6-v2_onnx` directory
@@ -38,7 +48,7 @@ wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/
 
 ### examples
 
-see [examples](./examples/embeddings.md)
+see [examples](./examples/cosine_query_example.md)
 
 ### reference
 

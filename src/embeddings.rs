@@ -86,6 +86,10 @@ lazy_static! {
 }
 
 /// Identifier for model used with the collection.
+/// 
+/// Be sure to set `VALENTINUS_CUSTOM_DIM` environment
+/// 
+/// variable to the number of dimensions for that model.
 #[derive(Debug, Deserialize, Serialize)]
 pub enum ModelType {
     /// AllMiniLmL12V2 model

@@ -11,8 +11,11 @@ use log::*;
 /// Used for controlling the amount of data being encoded
 pub const BATCH_SIZE: usize = 100;
 
-/// Dimensions for the all-mini-lm-l6 model
-const DIMENSIONS: usize = 384;
+/// Default dimensions for the all-mini-lm-l6 model
+const DEFUALT_DIMENSIONS: usize = 384;
+
+/// Custom dimensions when setting custom models
+const VALENTINUS_CUSTOM_DIM: &str = "VALENTINUS_CUSTOM_DIM";
 
 /// Environment variable for parallel execution threads count
 const ONNX_PARALLEL_THREADS: &str = "ONNX_PARALLEL_THREADS"; 
@@ -73,8 +76,12 @@ pub fn batch_embeddings(
     data: &[String],
 ) -> Result<Array2<f32>, ort::Error> {
     info!("batching length {} from {}", data.len(), model_path);
+    let dimensions: usize = match std::env::var(VALENTINUS_CUSTOM_DIM) {
+        Err(_) => DEFUALT_DIMENSIONS,
+        Ok(t) => t.parse::<usize>().unwrap_or(DEFUALT_DIMENSIONS),
+    };
     let mut data_array: ndarray::ArrayBase<OwnedRepr<f32>, ndarray::Dim<[usize; 2]>> =
-        ndarray::Array::zeros((data.len(), DIMENSIONS));
+        ndarray::Array::zeros((data.len(), dimensions));
     let mut begin: usize = 0;
     let mut multiplier: usize = 1;
     let length = data.len();
@@ -84,7 +91,7 @@ pub fn batch_embeddings(
         let embeddings =
             generate_embeddings(model_path, &data[begin..end]).unwrap_or_default();
         for index1 in begin..end {
-            for index2 in 0..DIMENSIONS {
+            for index2 in 0..dimensions {
                 data_array[[index1, index2]] = embeddings[[index1 - begin, index2]];
             }
         }
@@ -95,7 +102,7 @@ pub fn batch_embeddings(
     let embeddings =
         generate_embeddings(model_path, &data[begin..length]).unwrap_or_default();
     for index1 in 0..length - begin {
-        for index2 in 0..DIMENSIONS {
+        for index2 in 0..dimensions {
             data_array[[(index1 + begin), index2]] = embeddings[[index1, index2]];
         }
     }
