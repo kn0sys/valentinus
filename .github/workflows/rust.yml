@@ -49,3 +49,8 @@ jobs:
         export LMDB_USER=$USER
         ONNX_PARALLEL_THREADS=2
         cargo test embeddings::tests::cosine_etl_test -- --exact
+    - name: nearest test
+      run: |
+        export LMDB_USER=$USER
+        ONNX_PARALLEL_THREADS=2
+        cargo test embeddings::tests::nearest_test -- --exact
