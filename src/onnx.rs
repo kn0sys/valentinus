@@ -76,7 +76,7 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
 }
 
 /// Batch embeddings with a batch size of 100 elements.
-pub fn batch_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f32>, ort::Error> {
+pub fn batch_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f32>, OnnxError> {
     info!("batching length {} from {}", data.len(), model_path);
     let dimensions: usize = match std::env::var(VALENTINUS_CUSTOM_DIM) {
         Err(_) => DEFUALT_DIMENSIONS,
@@ -90,7 +90,7 @@ pub fn batch_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f
     while length - begin > BATCH_SIZE {
         info!("{} encodings remaining", length - begin);
         let end = (BATCH_SIZE * multiplier) - 1;
-        let embeddings = generate_embeddings(model_path, &data[begin..end]).unwrap_or_default();
+        let embeddings = generate_embeddings(model_path, &data[begin..end])?;
         for index1 in begin..end {
             for index2 in 0..dimensions {
                 data_array[[index1, index2]] = embeddings[[index1 - begin, index2]];
@@ -100,7 +100,7 @@ pub fn batch_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f
         multiplier += 1;
     }
     info!("{} encodings remaining", length - begin);
-    let embeddings = generate_embeddings(model_path, &data[begin..length]).unwrap_or_default();
+    let embeddings = generate_embeddings(model_path, &data[begin..length])?;
     for index1 in 0..length - begin {
         for index2 in 0..dimensions {
             data_array[[(index1 + begin), index2]] = embeddings[[index1, index2]];

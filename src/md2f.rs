@@ -1,11 +1,13 @@
-use log::{error, info};
+use log::{debug, info};
 use serde_json::Value;
 
+/// Possible errors while filtering may be due to 
+/// 
+/// parsing, invalid operation value etc.
 #[derive(Debug)]
-enum Md2fsError {
+pub enum Md2fsError {
     SerdeJsonError,
     ParseError,
-    NoKeyFound,
 }
 /// Where clause keys
 #[derive(Debug)]
@@ -13,7 +15,6 @@ enum FilterOperations {
     EqualTo,
     GreaterThanEqualTo,
     GreaterThan,
-    In,
     LessThan,
     LessThanEqualTo,
     Noop,
@@ -26,7 +27,6 @@ impl FilterOperations {
             "eq" => FilterOperations::EqualTo,
             "gt" => FilterOperations::GreaterThan,
             "gte" => FilterOperations::GreaterThanEqualTo,
-            "in" => FilterOperations::In,
             "lt" => FilterOperations::LessThan,
             "lte" => FilterOperations::LessThanEqualTo,
             _ => FilterOperations::EqualTo,
@@ -34,9 +34,15 @@ impl FilterOperations {
     }
 }
 
+#[derive(Debug)]
+enum MetadataFilterResult {
+    U64Filter(MetadataFilter<u64>),
+    StringFilter(MetadataFilter<String>),
+}
+
 /// Metadata filter
 #[derive(Debug)]
-pub struct MetadataFilter<T> {
+struct MetadataFilter<T> {
     /// Key to filter on
     key: String,
     /// Valid json type to filter on
@@ -45,7 +51,7 @@ pub struct MetadataFilter<T> {
     filter: FilterOperations,
 }
 
-impl Default for MetadataFilter<String> {
+impl <T: std::default::Default> Default for MetadataFilter<T> {
     fn default() -> Self {
         MetadataFilter {
             key: Default::default(),
@@ -55,24 +61,29 @@ impl Default for MetadataFilter<String> {
     }
 }
 
-trait FilterString {
-    fn create_filter(raw: &str) -> Result<MetadataFilter<String>, Md2fsError>;
-    fn eq(self, m: MetadataFilter<String>) -> bool;
+trait Filter<T> {
+    fn create_filter(raw: &str) -> Result<MetadataFilterResult, Md2fsError>;
+    fn eq(self, m: MetadataFilter<T>) -> bool;
+    fn gt(self, m: MetadataFilter<T>) -> bool;
+    fn gte(self, m: MetadataFilter<T>) -> bool;
+    fn lt(self, m: MetadataFilter<T>) -> bool;
+    fn lte(self, m: MetadataFilter<T>) -> bool;
 }
 
-impl FilterString for MetadataFilter<String> {
+impl <T>Filter<T> for MetadataFilter<T>
+where T: PartialEq + PartialOrd + Default
+{
     /// Create a filter on a valid string value
-    fn create_filter(raw: &str) -> Result<MetadataFilter<String>, Md2fsError> {
+    fn create_filter(raw: &str) -> Result<MetadataFilterResult, Md2fsError> {
         let v: Result<Value, serde_json::Error> = serde_json::from_str(raw);
         if v.is_err() {
-            error!("invalid json string");
+            debug!("invalid json string");
             return Err(Md2fsError::SerdeJsonError);
         }
         let u_v: Value = v.map_err(|_| Md2fsError::ParseError)?;
         let vo = u_v.as_object();
         if vo.is_none() {
-            error!("could not parse string");
-            return Err(Md2fsError::ParseError);
+            debug!("could not parse string");
         }
         let key = match vo {
             Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
@@ -86,14 +97,24 @@ impl FilterString for MetadataFilter<String> {
             info!("no op key found, processing as metadata");
             let p_value = &u_v[&key];
             if !p_value.is_string() {
-                return Err(Md2fsError::NoKeyFound);
+                debug!("op key is not a string value");
             }
-            let value: String = match p_value.as_str() {
-                Some(s) => s.to_string(),
-                _=> String::new(),
-            };
-            let filter: FilterOperations = FilterOperations::Noop;
-            return Ok(MetadataFilter { key, filter, value });
+            if p_value.is_string() {
+                let value: String = match p_value.as_str() {
+                    Some(s) => s.to_string(),
+                    _=> String::new(),
+                };
+                let filter: FilterOperations = FilterOperations::Noop;
+                return Ok(
+                    MetadataFilterResult::StringFilter(MetadataFilter { key, filter, value })
+                );
+            } else {
+                let value: u64 = p_value.as_u64().unwrap_or_default();
+                let filter: FilterOperations = FilterOperations::Noop;
+                return Ok(
+                    MetadataFilterResult::U64Filter(MetadataFilter { key, filter, value })
+                );
+            }
         }
         let op = match vo2 {
             Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
@@ -109,198 +130,45 @@ impl FilterString for MetadataFilter<String> {
                 Some(s) => s.to_string(),
                 _=> String::new(),
             };
-            return Ok(MetadataFilter { key, filter, value });
+            return Ok(
+                MetadataFilterResult::StringFilter(MetadataFilter { key, filter, value })
+            );
         }
-        Err(Md2fsError::ParseError)
-    }
-    fn eq(self, m: MetadataFilter<String>) -> bool {
-        match self.filter {
-            FilterOperations::EqualTo => self.key == m.key && self.value == m.value,
-            _ => false,
-        }
-    }
-}
-
-impl Default for MetadataFilter<Vec<String>> {
-    fn default() -> Self {
-        MetadataFilter {
-            key: Default::default(),
-            value: Default::default(),
-            filter: FilterOperations::Noop,
-        }
-    }
-}
-
-trait FilterStringArray {
-    fn create_filter(raw: &str) -> Result<MetadataFilter<Vec<String>>, Md2fsError>;
-    fn v_in(self, m: MetadataFilter<String>) -> bool;
-}
-
-impl FilterStringArray for MetadataFilter<Vec<String>> {
-    /// Create a filter on a valid string value
-    fn create_filter(raw: &str) -> Result<MetadataFilter<Vec<String>>, Md2fsError> {
-        let v: Result<Value, serde_json::Error> = serde_json::from_str(raw);
-        if v.is_err() {
-            error!("invalid json string");
-            return Err(Md2fsError::SerdeJsonError);
-        }
-        let u_v: Value = v.map_err(|_| Md2fsError::ParseError)?;
-        let vo = u_v.as_object();
-        if vo.is_none() {
-            error!("could not parse string");
-            return Err(Md2fsError::ParseError);
-        }
-        let key = match vo {
-            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
-            _=> String::new()
-        };
-        let vo2 = match vo {
-            Some(v) => v[&key].as_object(),
-            _=> None
-        };
-        if vo2.is_none() {
-            info!("no op key found, processing as metadata");
-            let p_array = &u_v[&key];
-            if !p_array.is_array() {
-                return Err(Md2fsError::NoKeyFound);
-            }
-            let u_array = match p_array.as_array() {
-                Some(a) => a,
-                _=> &Vec::new(),
-            };
-            let filter: FilterOperations = FilterOperations::Noop;
-            // duck invalid values in the array and fail the metadata filter
-            let value: Vec<String> = u_array
-                .iter()
-                .map(|s| String::from(s.as_str().unwrap_or_default()))
-                .collect();
-            return Ok(MetadataFilter { key, filter, value });
-        }
-        let op = match vo2 {
-            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
-            _=> String::new(),
-        };
-        if op.is_empty() {
-            return Err(Md2fsError::ParseError);
-        }
-        let value = match vo2 {
-            Some(v) => &v[&op],
-            _=> &Value::Array(Vec::new()),
-        };
-        let filter: FilterOperations = FilterOperations::get_enum(&op);
-        if value.is_array() {
-            let possible_array = match value.as_array() {
-                Some(a) => a,
-                _=> &Vec::new(),
-            };
-            // duck invalid values in the array and fail the metadata filter
-            let value = possible_array
-                .iter()
-                .map(|s| String::from(s.as_str().unwrap_or_default()))
-                .collect();
-            return Ok(MetadataFilter { key, filter, value });
-        }
-        Err(Md2fsError::ParseError)
-    }
-    fn v_in(self, m: MetadataFilter<String>) -> bool {
-        match self.filter {
-            FilterOperations::In => self.value.contains(&m.value),
-            _ => false,
-        }
-    }
-}
-
-impl Default for MetadataFilter<u64> {
-    fn default() -> Self {
-        MetadataFilter {
-            key: Default::default(),
-            value: 0,
-            filter: FilterOperations::Noop,
-        }
-    }
-}
-
-trait Filteru64 {
-    fn create_filter(raw: &str) -> Result<MetadataFilter<u64>, Md2fsError>;
-    fn eq(self, m: MetadataFilter<u64>) -> bool;
-    fn gt(self, m: MetadataFilter<u64>) -> bool;
-    fn gte(self, m: MetadataFilter<u64>) -> bool;
-    fn lt(self, m: MetadataFilter<u64>) -> bool;
-    fn lte(self, m: MetadataFilter<u64>) -> bool;
-}
-
-impl Filteru64 for MetadataFilter<u64> {
-    /// Create a filter on a valid u64 value
-    fn create_filter(raw: &str) -> Result<MetadataFilter<u64>, Md2fsError> {
-        let v: Result<Value, serde_json::Error> = serde_json::from_str(raw);
-        if v.is_err() {
-            error!("invalid json string");
-            return Err(Md2fsError::SerdeJsonError);
-        }
-        let u_v: Value = v.map_err(|_| Md2fsError::ParseError)?;
-        let vo = u_v.as_object();
-        if vo.is_none() {
-            error!("could not parse string");
-            return Err(Md2fsError::ParseError);
-        }
-        let key = match vo {
-            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
-            _=> String::new()
-        };
-        let vo2 = match vo {
-            Some(v) => v[&key].as_object(),
-            _=> None
-        };
-        if vo2.is_none() {
-            info!("no op key found, processing as metadata");
-            let p_value = &u_v[&key];
-            if !p_value.is_u64() {
-                return Err(Md2fsError::NoKeyFound);
-            }
-            let value: u64 = p_value.as_u64().unwrap_or_default();
-            let filter: FilterOperations = FilterOperations::Noop;
-            return Ok(MetadataFilter { key, filter, value });
-        }
-        let op = match vo2 {
-            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
-            _=> String::new(),
-        };
-        let value = match vo2 {
-            Some(v) => &v[&op],
-            _=> &Value::String(String::new()),
-        };
-        let filter: FilterOperations = FilterOperations::get_enum(&op);
         if value.is_u64() {
             let value = value.as_u64().unwrap_or_default();
-            return Ok(MetadataFilter { key, filter, value });
+            return Ok(
+                MetadataFilterResult::U64Filter(MetadataFilter { key, filter, value })
+            );
         }
-        Err(Md2fsError::ParseError)
+        Ok(
+            MetadataFilterResult::StringFilter(Default::default())
+        )
     }
-    fn eq(self, m: MetadataFilter<u64>) -> bool {
+    fn eq(self, m: MetadataFilter<T>) -> bool {
         match self.filter {
             FilterOperations::EqualTo => self.key == m.key && self.value == m.value,
             _ => false,
         }
     }
-    fn gt(self, m: MetadataFilter<u64>) -> bool {
+    fn gt(self, m: MetadataFilter<T>) -> bool {
         match self.filter {
             FilterOperations::GreaterThan => self.key == m.key && self.value < m.value,
             _ => false,
         }
     }
-    fn gte(self, m: MetadataFilter<u64>) -> bool {
+    fn gte(self, m: MetadataFilter<T>) -> bool {
         match self.filter {
             FilterOperations::GreaterThanEqualTo => self.key == m.key && self.value <= m.value,
             _ => false,
         }
     }
-    fn lt(self, m: MetadataFilter<u64>) -> bool {
+    fn lt(self, m: MetadataFilter<T>) -> bool {
         match self.filter {
             FilterOperations::LessThan => self.key == m.key && self.value > m.value,
             _ => false,
         }
     }
-    fn lte(self, m: MetadataFilter<u64>) -> bool {
+    fn lte(self, m: MetadataFilter<T>) -> bool {
         match self.filter {
             FilterOperations::LessThanEqualTo => self.key == m.key && self.value >= m.value,
             _ => false,
@@ -308,53 +176,49 @@ impl Filteru64 for MetadataFilter<u64> {
     }
 }
 
-fn process_string_filter(raw_f: &str, raw_m: &str) -> bool {
-    let try_filter = <MetadataFilter<std::string::String> as FilterString>::create_filter(raw_f);
-    let try_meta = <MetadataFilter<std::string::String> as FilterString>::create_filter(raw_m);
-    let tf = try_filter.unwrap_or_default();
-    if tf.key.is_empty() {
-        log::error!("could not process string filter");
-        return false;
-    }
-    let tm = try_meta.unwrap_or_default();
-    match tf.filter {
-        FilterOperations::EqualTo => tf.eq(tm),
-        _ => false,
-    }
-}
-
-fn process_string_array_filter(raw_f: &str, raw_m: &str) -> bool {
-    let try_filter = <MetadataFilter<Vec<String>> as FilterStringArray>::create_filter(raw_f);
-    let try_meta = <MetadataFilter<std::string::String> as FilterString>::create_filter(raw_m);
-    let tf = try_filter.unwrap_or_default();
-    if tf.key.is_empty() {
-        log::error!("could not process string array filter");
-        return false;
-    }
-    let tm = try_meta.unwrap_or_default();
-    match tf.filter {
-        FilterOperations::EqualTo => tf.v_in(tm),
-        _ => false,
-    }
-}
-
-fn process_u64_filter(raw_f: &str, raw_m: &str) -> bool {
-    let try_filter = <MetadataFilter<u64> as Filteru64>::create_filter(raw_f);
-    let try_meta = <MetadataFilter<u64> as Filteru64>::create_filter(raw_m);
-    let tf = try_filter.unwrap_or_default();
-    if tf.key.is_empty() {
-        log::error!("could not process u64 filter");
-        return false;
-    }
-    let tm = try_meta.unwrap_or_default();
-    match tf.filter {
-        FilterOperations::EqualTo => tf.eq(tm),
-        FilterOperations::GreaterThan => tf.gt(tm),
-        FilterOperations::GreaterThanEqualTo => tf.gte(tm),
-        FilterOperations::LessThan => tf.lt(tm),
-        FilterOperations::LessThanEqualTo => tf.lte(tm),
-        _ => false,
-    }
+fn process_filter(raw_f: &str, raw_m: &str) -> Result<bool, Md2fsError> {
+    let try_filter: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<String>::create_filter(raw_f);
+    let try_meta: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<String>::create_filter(raw_m);
+    debug!("debug -> {:?}", try_meta);
+    let tf = try_filter?;
+    let tm = try_meta?;
+    let string_filter = match tf {
+        MetadataFilterResult::StringFilter(fstr) => {
+            match tm {
+                MetadataFilterResult::StringFilter(mstr) => {
+                    match fstr.filter {
+                        FilterOperations::EqualTo => Ok(fstr.eq(mstr)),
+                        _=> Ok(false)
+                    }
+                }
+                _=> Ok(false)
+            }
+        },
+        _=> Ok(false)
+    }?;
+    let try_filter: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<u64>::create_filter(raw_f);
+    let try_meta: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<u64>::create_filter(raw_m);
+    let tf = try_filter?;
+    let tm = try_meta?;
+    let u64_filter = match tf {
+        MetadataFilterResult::U64Filter(fu64) => {
+            match tm {
+                MetadataFilterResult::U64Filter(mu64) => {
+                    match fu64.filter {
+                        FilterOperations::EqualTo => Ok(fu64.eq(mu64)),
+                        FilterOperations::GreaterThan => Ok(fu64.gt(mu64)),
+                        FilterOperations::GreaterThanEqualTo => Ok(fu64.gte(mu64)),
+                        FilterOperations::LessThan => Ok(fu64.lt(mu64)),
+                        FilterOperations::LessThanEqualTo => Ok(fu64.lte(mu64)),
+                        _=> Ok(false)
+                    }
+                }
+                _=> Ok(false)
+            }
+        },
+        _=> Ok(false)
+    }?;
+    Ok(string_filter || u64_filter)
 }
 
 /// Proces two raw json strings. Let `raw_f` be a valid metadata filter
@@ -362,33 +226,19 @@ fn process_u64_filter(raw_f: &str, raw_m: &str) -> bool {
 /// and `raw_m` be valid metadata that is not a nested object. Returns true
 ///
 /// on a valid match. The equivalent of an SQL `where` clause.
-pub fn filter_where(raw_f: &[String], raw_m: &[String]) -> bool {
+pub fn filter_where(raw_f: &[String], raw_m: &[String]) -> Result<bool, Md2fsError> {
     let mut t_count: usize = 0;
     let length = raw_f.len();
     for m in raw_m {
         for filter in raw_f {
-            let tsf_result = process_string_filter(filter, m);
+            let tsf_result = process_filter(filter, m)?;
             if tsf_result {
                 t_count += 1;
                 if t_count == length {
-                    return tsf_result;
-                };
-            }
-            let tuf_result = process_u64_filter(filter, m);
-            if tuf_result {
-                t_count += 1;
-                if t_count == length {
-                    return tuf_result;
-                };
-            }
-            let taf_result = process_string_array_filter(filter, m);
-            if taf_result {
-                t_count += 1;
-                if t_count == length {
-                    return taf_result;
+                    return Ok(tsf_result);
                 };
             }
         }
     }
-    false // filters failed
+    Ok(false) // filters failed
 }
