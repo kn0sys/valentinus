@@ -5,7 +5,7 @@
 extern crate lmdb_rs as lmdb;
 
 use lmdb::{DbFlags, DbHandle, EnvBuilder, Environment};
-use lmdb_rs::Database;
+use lmdb_rs::{Database, MdbError};
 use log::{error, info};
 use sysinfo::System;
 
@@ -29,7 +29,7 @@ const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.01;
 /// By default the database will be written to /home/user/.valentinus/{ENV}/lmdb
 pub struct DatabaseEnvironment {
     pub env: Environment,
-    pub handle: DbHandle,
+    pub handle: Result<DbHandle, MdbError>,
 }
 
 impl DatabaseEnvironment {
@@ -38,7 +38,7 @@ impl DatabaseEnvironment {
     /// of available memory and can be set via the `LMDB_MAP_SIZE` environment variable.
     ///
     /// The path of the user can be set with `LMDB_USER`.
-    pub fn open(env: &str) -> Self {
+    pub fn open(env: &str) -> Result<Self, MdbError> {
         let s = System::new_all();
         let default_map_size: u64 =
             (s.available_memory() as f32 * MAP_SIZE_MEMORY_RATIO).floor() as u64;
@@ -62,24 +62,20 @@ impl DatabaseEnvironment {
         if default.is_err() {
             panic!("could not set db handle")
         }
-        let handle: DbHandle = default.unwrap();
-        DatabaseEnvironment { env, handle }
+        let handle: DbHandle = default?;
+        Ok(DatabaseEnvironment { env, handle: Ok(handle) })
     }
     /// Write a key/value pair to the database. It is not possible to
     ///
     /// write with empty keys.
-    fn write(e: &Environment, h: &DbHandle, k: &Vec<u8>, v: &Vec<u8>) {
+    fn write(e: &Environment, h: &DbHandle, k: &Vec<u8>, v: &Vec<u8>) -> Result<(), MdbError> {
         info!("excecuting lmdb write");
         if k.is_empty() {
             error!("can't write empty key");
-            return;
+            return Err(MdbError::NotFound);
         }
-        let new_txn: Result<lmdb_rs::Transaction, lmdb_rs::MdbError> = e.new_transaction();
-        if new_txn.is_err() {
-            error!("failed write txn on key: {:?}", k);
-            return;
-        }
-        let txn = new_txn.unwrap();
+        let new_txn = e.new_transaction()?;
+        let txn = new_txn;
         {
             let db: Database = txn.bind(h);
             let pair: Vec<(&Vec<u8>, &Vec<u8>)> = vec![(k, v)];
@@ -88,26 +84,22 @@ impl DatabaseEnvironment {
                     .unwrap_or_else(|_| error!("failed to set key: {:?}", k));
             }
         }
-        txn.commit().unwrap()
+        txn.commit()
     }
     /// Read key from the database. If it doesn't exist then
     ///
     /// an empty vector will be returned. Treat all empty vectors
     ///
     /// from database operations as failures.
-    pub fn read(e: &Environment, h: &DbHandle, k: &Vec<u8>) -> Vec<u8> {
+    pub fn read(e: &Environment, h: &DbHandle, k: &Vec<u8>) -> Result<Vec<u8>, MdbError> {
         info!("excecuting lmdb read");
         // don't try and read empty keys
         if k.is_empty() {
             error!("can't read empty key");
-            return Vec::new();
+            return Err(MdbError::NotFound);
         }
         let get_reader = e.get_reader();
-        if get_reader.is_err() {
-            error!("failed to read key {:?} from db", k);
-            return Vec::new();
-        }
-        let reader: lmdb_rs::ReadonlyTransaction = get_reader.unwrap();
+        let reader: lmdb_rs::ReadonlyTransaction = get_reader?;
         let db: Database = reader.bind(h);
         let mut result: Vec<u8> = Vec::new();
         for num_writes in 0..usize::MAX {
@@ -125,26 +117,19 @@ impl DatabaseEnvironment {
                 error!("failed to read key {:?} from db", k);
             }
         }
-        result
+        Ok(result)
     }
     /// Deletes a key/value pair from the database
-    pub fn delete(e: &Environment, h: &DbHandle, k: &Vec<u8>) {
+    pub fn delete(e: &Environment, h: &DbHandle, k: &[u8]) -> Result<(), MdbError>{
         info!("excecuting lmdb delete");
         if k.is_empty() {
             error!("can't delete empty key");
-            return;
+            return Err(MdbError::NotFound);
         }
         let new_txn = e.new_transaction();
-        if new_txn.is_err() {
-            error!("failed txn deleting key: {:?}", k);
-            return;
-        }
-        let txn = new_txn.unwrap();
+        let txn = new_txn?;
         let get_reader = e.get_reader();
-        if get_reader.is_err() {
-            error!("failed to read key {:?} from db", k);
-        }
-        let reader: lmdb_rs::ReadonlyTransaction = get_reader.unwrap();
+        let reader: lmdb_rs::ReadonlyTransaction = get_reader?;
         let db_reader: Database = reader.bind(h);
         {
             let db = txn.bind(h);
@@ -161,7 +146,7 @@ impl DatabaseEnvironment {
                     .unwrap_or_else(|_| error!("failed to delete"));
             }
         }
-        txn.commit().unwrap()
+        txn.commit()
     }
 }
 
@@ -170,7 +155,7 @@ impl DatabaseEnvironment {
 /// of the map size . Setting the map_size to a low value
 ///
 /// will cause degraded performance.
-pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) {
+pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) -> Result<(), MdbError> {
     let s = System::new_all();
     let chunk_size = (s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO) as usize;
     let mut writes: usize = 1;
@@ -182,12 +167,12 @@ pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) {
         old_key.append(&mut append);
         if length > chunk_size && (length - index > chunk_size) {
             // write chunks until the last value which is smaller than chunk_size
-            DatabaseEnvironment::write(e, h, &old_key, &v[index..(chunk_size * writes)].to_vec());
+            let _ = DatabaseEnvironment::write(e, h, &old_key, &v[index..(chunk_size * writes)].to_vec());
             index += chunk_size;
             writes += 1;
         } else {
-            DatabaseEnvironment::write(e, h, &old_key, &v[index..length].to_vec());
-            break;
+            DatabaseEnvironment::write(e, h, &old_key, &v[index..length].to_vec())?;
+            return Ok(());
         }
     }
 }
@@ -202,26 +187,31 @@ mod tests {
     use rand::RngCore;
 
     #[test]
-    fn environment_test() {
-        let db = DatabaseEnvironment::open("10-mb-test");
+    fn environment_test() -> Result<(), MdbError>{
+        let db = DatabaseEnvironment::open("10-mb-test")?;
         const DATA_SIZE_10MB: usize = 10000000;
         let mut data = vec![0u8; DATA_SIZE_10MB];
         rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();
-        write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
-        let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
-        assert_eq!(expected.to_vec(), actual);
-        DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
-        let db = DatabaseEnvironment::open("100-mb-test");
+        write_chunks(&db.env, &db.handle?, &Vec::from(k), &Vec::from(data))?;
+        let db = DatabaseEnvironment::open("10-mb-test")?;
+        let actual = DatabaseEnvironment::read(&db.env, &db.handle?, &Vec::from(k));
+        assert_eq!(expected.to_vec(), actual?);
+        let db = DatabaseEnvironment::open("10-mb-test")?;
+        let _ = DatabaseEnvironment::delete(&db.env, &db.handle?, &Vec::from(k));
+        let db = DatabaseEnvironment::open("100-mb-test")?;
         const DATA_SIZE_100MB: usize = 100000000;
         let mut data = vec![0u8; DATA_SIZE_100MB];
         rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();
-        write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data));
-        let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
-        assert_eq!(expected.to_vec(), actual);
-        DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
+        write_chunks(&db.env, &db.handle?, &Vec::from(k), &Vec::from(data))?;
+        let db = DatabaseEnvironment::open("100-mb-test")?;
+        let actual = DatabaseEnvironment::read(&db.env, &db.handle?, &Vec::from(k));
+        assert_eq!(expected.to_vec(), actual?);
+        let db = DatabaseEnvironment::open("100-mb-test")?;
+        let _ = DatabaseEnvironment::delete(&db.env, &db.handle?, &Vec::from(k));
+        Ok(())
     }
 }

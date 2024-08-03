@@ -1,6 +1,12 @@
 use log::{error, info};
-use serde_json::{Error, Value};
+use serde_json::Value;
 
+#[derive(Debug)]
+enum Md2fsError {
+    SerdeJsonError,
+    ParseError,
+    NoKeyFound,
+}
 /// Where clause keys
 #[derive(Debug)]
 enum FilterOperations {
@@ -50,44 +56,62 @@ impl Default for MetadataFilter<String> {
 }
 
 trait FilterString {
-    fn create_filter(raw: &str) -> Result<MetadataFilter<String>, Error>;
+    fn create_filter(raw: &str) -> Result<MetadataFilter<String>, Md2fsError>;
     fn eq(self, m: MetadataFilter<String>) -> bool;
 }
 
 impl FilterString for MetadataFilter<String> {
     /// Create a filter on a valid string value
-    fn create_filter(raw: &str) -> Result<MetadataFilter<String>, Error> {
+    fn create_filter(raw: &str) -> Result<MetadataFilter<String>, Md2fsError> {
         let v: Result<Value, serde_json::Error> = serde_json::from_str(raw);
         if v.is_err() {
             error!("invalid json string");
-            return Ok(Default::default());
+            return Err(Md2fsError::SerdeJsonError);
         }
-        let u_v: Value = v.unwrap();
+        let u_v: Value = v.map_err(|_| Md2fsError::ParseError)?;
         let vo = u_v.as_object();
         if vo.is_none() {
             error!("could not parse string");
-            return Ok(Default::default());
+            return Err(Md2fsError::ParseError);
         }
-        let key = vo.unwrap().keys().collect::<Vec<&String>>()[0].to_string();
-        let vo2 = vo.unwrap()[&key].as_object();
+        let key = match vo {
+            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
+            _=> String::new()
+        };
+        let vo2 = match vo {
+            Some(v) => v[&key].as_object(),
+            _=> None
+        };
         if vo2.is_none() {
             info!("no op key found, processing as metadata");
             let p_value = &u_v[&key];
             if !p_value.is_string() {
-                return Ok(Default::default());
+                return Err(Md2fsError::NoKeyFound);
             }
-            let value: String = p_value.as_str().unwrap().to_string();
+            let value: String = match p_value.as_str() {
+                Some(s) => s.to_string(),
+                _=> String::new(),
+            };
             let filter: FilterOperations = FilterOperations::Noop;
             return Ok(MetadataFilter { key, filter, value });
         }
-        let op = vo2.unwrap().keys().collect::<Vec<&String>>()[0].to_string();
-        let value = &vo2.unwrap()[&op];
+        let op = match vo2 {
+            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
+            _=> String::new(),
+        };
+        let value = match vo2 {
+            Some(v) => &v[&op],
+            _=> &Value::String(String::new()),
+        };
         let filter: FilterOperations = FilterOperations::get_enum(&op);
         if value.is_string() {
-            let value = value.as_str().unwrap().to_string();
+            let value = match value.as_str() {
+                Some(s) => s.to_string(),
+                _=> String::new(),
+            };
             return Ok(MetadataFilter { key, filter, value });
         }
-        Ok(Default::default())
+        Err(Md2fsError::ParseError)
     }
     fn eq(self, m: MetadataFilter<String>) -> bool {
         match self.filter {
@@ -108,33 +132,42 @@ impl Default for MetadataFilter<Vec<String>> {
 }
 
 trait FilterStringArray {
-    fn create_filter(raw: &str) -> Result<MetadataFilter<Vec<String>>, Error>;
+    fn create_filter(raw: &str) -> Result<MetadataFilter<Vec<String>>, Md2fsError>;
     fn v_in(self, m: MetadataFilter<String>) -> bool;
 }
 
 impl FilterStringArray for MetadataFilter<Vec<String>> {
     /// Create a filter on a valid string value
-    fn create_filter(raw: &str) -> Result<MetadataFilter<Vec<String>>, Error> {
+    fn create_filter(raw: &str) -> Result<MetadataFilter<Vec<String>>, Md2fsError> {
         let v: Result<Value, serde_json::Error> = serde_json::from_str(raw);
         if v.is_err() {
             error!("invalid json string");
-            return Ok(Default::default());
+            return Err(Md2fsError::SerdeJsonError);
         }
-        let u_v: Value = v.unwrap();
+        let u_v: Value = v.map_err(|_| Md2fsError::ParseError)?;
         let vo = u_v.as_object();
         if vo.is_none() {
-            error!("failed to parse string array");
-            return Ok(Default::default());
+            error!("could not parse string");
+            return Err(Md2fsError::ParseError);
         }
-        let key = vo.unwrap().keys().collect::<Vec<&String>>()[0].to_string();
-        let vo2 = vo.unwrap()[&key].as_object();
+        let key = match vo {
+            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
+            _=> String::new()
+        };
+        let vo2 = match vo {
+            Some(v) => v[&key].as_object(),
+            _=> None
+        };
         if vo2.is_none() {
             info!("no op key found, processing as metadata");
             let p_array = &u_v[&key];
             if !p_array.is_array() {
-                return Ok(Default::default());
+                return Err(Md2fsError::NoKeyFound);
             }
-            let u_array = p_array.as_array().unwrap();
+            let u_array = match p_array.as_array() {
+                Some(a) => a,
+                _=> &Vec::new(),
+            };
             let filter: FilterOperations = FilterOperations::Noop;
             // duck invalid values in the array and fail the metadata filter
             let value: Vec<String> = u_array
@@ -143,11 +176,23 @@ impl FilterStringArray for MetadataFilter<Vec<String>> {
                 .collect();
             return Ok(MetadataFilter { key, filter, value });
         }
-        let op = vo2.unwrap().keys().collect::<Vec<&String>>()[0].to_string();
-        let value = &vo2.unwrap()[&op];
+        let op = match vo2 {
+            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
+            _=> String::new(),
+        };
+        if op.is_empty() {
+            return Err(Md2fsError::ParseError);
+        }
+        let value = match vo2 {
+            Some(v) => &v[&op],
+            _=> &Value::Array(Vec::new()),
+        };
         let filter: FilterOperations = FilterOperations::get_enum(&op);
         if value.is_array() {
-            let possible_array = value.as_array().unwrap();
+            let possible_array = match value.as_array() {
+                Some(a) => a,
+                _=> &Vec::new(),
+            };
             // duck invalid values in the array and fail the metadata filter
             let value = possible_array
                 .iter()
@@ -155,7 +200,7 @@ impl FilterStringArray for MetadataFilter<Vec<String>> {
                 .collect();
             return Ok(MetadataFilter { key, filter, value });
         }
-        Ok(Default::default())
+        Err(Md2fsError::ParseError)
     }
     fn v_in(self, m: MetadataFilter<String>) -> bool {
         match self.filter {
@@ -176,7 +221,7 @@ impl Default for MetadataFilter<u64> {
 }
 
 trait Filteru64 {
-    fn create_filter(raw: &str) -> Result<MetadataFilter<u64>, Error>;
+    fn create_filter(raw: &str) -> Result<MetadataFilter<u64>, Md2fsError>;
     fn eq(self, m: MetadataFilter<u64>) -> bool;
     fn gt(self, m: MetadataFilter<u64>) -> bool;
     fn gte(self, m: MetadataFilter<u64>) -> bool;
@@ -186,38 +231,50 @@ trait Filteru64 {
 
 impl Filteru64 for MetadataFilter<u64> {
     /// Create a filter on a valid u64 value
-    fn create_filter(raw: &str) -> Result<MetadataFilter<u64>, Error> {
+    fn create_filter(raw: &str) -> Result<MetadataFilter<u64>, Md2fsError> {
         let v: Result<Value, serde_json::Error> = serde_json::from_str(raw);
         if v.is_err() {
             error!("invalid json string");
-            return Ok(Default::default());
+            return Err(Md2fsError::SerdeJsonError);
         }
-        let u_v: Value = v.unwrap();
+        let u_v: Value = v.map_err(|_| Md2fsError::ParseError)?;
         let vo = u_v.as_object();
         if vo.is_none() {
-            error!("failed to parse u64");
-            return Ok(Default::default());
+            error!("could not parse string");
+            return Err(Md2fsError::ParseError);
         }
-        let key = vo.unwrap().keys().collect::<Vec<&String>>()[0].to_string();
-        let vo2 = vo.unwrap()[&key].as_object();
+        let key = match vo {
+            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
+            _=> String::new()
+        };
+        let vo2 = match vo {
+            Some(v) => v[&key].as_object(),
+            _=> None
+        };
         if vo2.is_none() {
             info!("no op key found, processing as metadata");
             let p_value = &u_v[&key];
             if !p_value.is_u64() {
-                return Ok(Default::default());
+                return Err(Md2fsError::NoKeyFound);
             }
-            let value: u64 = p_value.as_u64().unwrap();
+            let value: u64 = p_value.as_u64().unwrap_or_default();
             let filter: FilterOperations = FilterOperations::Noop;
             return Ok(MetadataFilter { key, filter, value });
         }
-        let op = vo2.unwrap().keys().collect::<Vec<&String>>()[0].to_string();
-        let value = &vo2.unwrap()[&op];
+        let op = match vo2 {
+            Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
+            _=> String::new(),
+        };
+        let value = match vo2 {
+            Some(v) => &v[&op],
+            _=> &Value::String(String::new()),
+        };
         let filter: FilterOperations = FilterOperations::get_enum(&op);
         if value.is_u64() {
-            let value = value.as_u64().unwrap();
+            let value = value.as_u64().unwrap_or_default();
             return Ok(MetadataFilter { key, filter, value });
         }
-        Ok(Default::default())
+        Err(Md2fsError::ParseError)
     }
     fn eq(self, m: MetadataFilter<u64>) -> bool {
         match self.filter {

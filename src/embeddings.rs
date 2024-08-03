@@ -16,19 +16,31 @@
 //!     vehicle_title: Option<String>,
 //! }
 //!
-//! fn foo() {
+//! fn foo() -> Result<(), ValentinusError> {
 //!     let mut documents: Vec<String> = Vec::new();
 //!     let mut metadata: Vec<Vec<String>> = Vec::new();
 //!     // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
-//!     let file_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("Scraped_Car_Review_tesla.csv");
+//!     let file_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+//!         .join("data")
+//!         .join("Scraped_Car_Review_tesla.csv");
 //!     let file = File::open(file_path).expect("csv file not found");
 //!     let mut rdr = csv::Reader::from_reader(file);
 //!     for result in rdr.deserialize() {
 //!         let record: Review = result.unwrap_or_default();
 //!         documents.push(record.review.unwrap_or_default());
-//!         let rating: u64 = record.rating.unwrap_or_default().parse::<u64>().unwrap_or_default();
-//!         let year: String = record.vehicle_title.unwrap()[0..5].to_string();
-//!         metadata.push(vec![format!(r#"{{"Rating": {}}}"#, rating), format!(r#"{{"Year": "{}"}}"#, year)]);
+//!         let rating: u64 = record
+//!             .rating
+//!             .unwrap_or_default()
+//!             .parse::<u64>()
+//!             .unwrap_or_default();
+//!         let mut year: String = record.vehicle_title.unwrap_or_default();
+//!         if !year.is_empty() {
+//!             year = year[0..5].to_string();
+//!         }
+//!         metadata.push(vec![
+//!             format!(r#"{{"Year": {}}}"#, year),
+//!             format!(r#"{{"Rating": {}}}"#, rating),
+//!         ]);
 //!     }
 //!     let mut ids: Vec<String> = Vec::new();
 //!     for i in 0..documents.len() {
@@ -39,37 +51,48 @@
 //!     let name = String::from("test_collection");
 //!     let expected: Vec<String> = documents.clone();
 //!     let mut ec: EmbeddingCollection =
-//!         EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
+//!         EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path)?;
 //!     let created_docs: &Vec<String> = ec.get_documents();
 //!     assert_eq!(expected, created_docs.to_vec());
 //!     // save collection to db
-//!     ec.save();
+//!     ec.save()?;
 //!     // query the collection
-//!     let query_string: String = String::from("Find the best reviews.");
+//!     let query_string: &String = &String::from("Find the best reviews.");
 //!     let result: CosineQueryResult = EmbeddingCollection::cosine_query(
-//!         query_string,
+//!         String::from(query_string),
 //!         String::from(ec.get_view()),
-//!         5,
+//!         10,
 //!         Some(vec![
+//!             String::from(r#"{ "Year":   {"eq": 2017} }"#),
 //!             String::from(r#"{ "Rating": {"gt": 3} }"#),
-//!             String::from(r#"{ "Year": {"eq": "2017"} }"#)
 //!         ]),
-//!     );
-//!     assert_eq!(result.get_docs().len(), 5);
-//!     let rating_value: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][0]);
-//!     let year_value: Result<Value, serde_json::Error> = serde_json::from_str(&result.get_metadata()[0][1]);
+//!     )?;
+//!     assert_eq!(result.get_docs().len(), 10);
+//!     let v_year: Result<Value, serde_json::Error> =
+//!         serde_json::from_str(&result.get_metadata()[0][0]);
+//!     let v_rating: Result<Value, serde_json::Error> =
+//!         serde_json::from_str(&result.get_metadata()[0][1]);
 //!     let rating_filter: u64 = 3;
 //!     let year_filter: u64 = 2017;
-//!     assert!(rating_value.unwrap()["Rating"].as_u64().unwrap_or(0) > rating_filter);
-//!     assert_eq!(year_value.unwrap()["Year"].as_u64().unwrap_or(0), year_filter);
+//!     assert!(v_rating.map_err(|_| ValentinusError::TestError)?["Rating"].as_u64().unwrap_or(0) > rating_filter);
+//!     assert_eq!(v_year.map_err(|_| ValentinusError::TestError)?["Year"].as_u64().unwrap_or(0), year_filter);
+//!     let no_filter_result: CosineQueryResult = EmbeddingCollection::cosine_query(
+//!         String::from(query_string),
+//!         String::from(ec.get_view()),
+//!         5,
+//!         None,
+//!     )?;
+//!     assert_eq!(no_filter_result.get_docs().len(), 5);
 //!     // remove collection from db
-//!     EmbeddingCollection::delete(String::from(ec.get_view()));
+//!     EmbeddingCollection::delete(String::from(ec.get_view()))?;
+//!     Ok(())
 //! }
 //! ```
 
 use distance::L2Dist;
 use lazy_static::lazy_static;
 use linfa_nn::*;
+use lmdb_rs::MdbError;
 use ndarray::*;
 use regex::Regex;
 use serde::Deserialize;
@@ -80,7 +103,8 @@ use crate::{database::*, md2f::filter_where, onnx::*};
 use log::*;
 
 lazy_static! {
-    static ref VIEWS_NAMING_CHECK: Regex = Regex::new("^[a-zA-Z0-9_]+$").unwrap();
+    static ref VIEWS_NAMING_CHECK: Regex =
+        Regex::new("^[a-zA-Z0-9_]+$").expect("regex should be valid");
 }
 
 /// Identifier for model used with the collection.
@@ -147,6 +171,27 @@ impl CosineQueryResult {
     }
 }
 
+/// Error handling enum for valentinus
+#[derive(Debug)]
+pub enum ValentinusError {
+    /// Bincode failure to serialize/desearilaize
+    BincodeError,
+    /// Cosine query failure
+    CosineError,
+    /// LMDB bindings error
+    DatabaseError(MdbError),
+    /// View name must contain alphanumerics, underscores and be unique
+    InvalidViewName,
+    /// Failure in nearest query
+    NearestError,
+    /// Failure to generate embeddings in the onnx moduler
+    OnnxError(OnnxError),
+    /// Failure to save new collection to the database
+    SaveError,
+    /// Error in testing
+    TestError,
+}
+
 /// Want to write a collection to the db?
 ///
 /// Look no further. Use `EmbeddingCollection::new()`
@@ -183,28 +228,34 @@ impl EmbeddingCollection {
         name: String,
         model_type: ModelType,
         model_path: String,
-    ) -> EmbeddingCollection {
+    ) -> Result<EmbeddingCollection, ValentinusError> {
         if !VIEWS_NAMING_CHECK.is_match(&name) {
             error!(
                 "views name {} must only contain alphanumerics/underscores",
                 &name
             );
-            return Default::default();
+            return Err(ValentinusError::InvalidViewName);
         }
         // check if  the views name is unique
-        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
         let views_lookup: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
-        let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup);
-        let view_indexer: KeyViewIndexer = bincode::deserialize(&views[..]).unwrap_or_default();
-        if view_indexer.values.contains(&name) {
-            error!("view name must be unique");
-            return Default::default();
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        let views = DatabaseEnvironment::read(&db.env, &handle, &views_lookup)
+            .map_err(ValentinusError::DatabaseError)?;
+        if !views.is_empty() {
+            let view_indexer: KeyViewIndexer =
+                bincode::deserialize(&views[..]).map_err(|_| ValentinusError::BincodeError)?;
+            if view_indexer.values.contains(&name) {
+                error!("view name must be unique");
+                return Err(ValentinusError::InvalidViewName);
+            }
         }
         info!("creating new collection: {}", &name);
         let id: Uuid = Uuid::new_v4();
         let key: String = format!("{}-{}", VALENTINUS_KEY, id);
         let view: String = format!("{}-{}", VALENTINUS_VIEW, name);
-        EmbeddingCollection {
+        let ec = EmbeddingCollection {
             documents,
             metadata,
             ids,
@@ -213,14 +264,15 @@ impl EmbeddingCollection {
             model_path,
             model_type,
             ..Default::default()
-        }
+        };
+        Ok(ec)
     }
     /// Save a collection to the database. Error if the key already exists.
-    pub fn save(&mut self) {
+    pub fn save(&mut self) -> Result<(), ValentinusError> {
         info!("saving new embedding collection: {}", self.view);
-        self.set_key_indexes();
-        self.set_kv_index();
-        self.set_view_indexes();
+        self.set_key_indexes()?;
+        self.set_kv_index()?;
+        self.set_view_indexes()?;
         // set the embeddings
         let mut embeddings: Array2<f32> = Default::default();
         info!("initialized embeddings: {}", embeddings.len());
@@ -229,29 +281,36 @@ impl EmbeddingCollection {
         let collection: Vec<u8> = bincode::serialize(&self).unwrap_or_default();
         if collection.is_empty() {
             error!("failed to save collection: {}", &self.key);
-            return;
+            return Err(ValentinusError::SaveError);
         }
         let key = &self.key;
         let b_key = Vec::from(key.as_bytes());
-        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
-        write_chunks(&db.env, &db.handle, &b_key, &collection);
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        write_chunks(&db.env, &handle, &b_key, &collection)
+            .map_err(ValentinusError::DatabaseError)?;
+        Ok(())
     }
     /// Fetch all known keys or views in the database.
     ///
     /// By default the database will return keys. Set the
     ///
     /// views argument to `true` to fetch all the views.
-    pub fn fetch_collection_keys(views: bool) -> KeyViewIndexer {
+    pub fn fetch_collection_keys(views: bool) -> Result<KeyViewIndexer, ValentinusError> {
         let mut b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
         if views {
             info!("setting search to views");
             b_key = Vec::from(VALENTINUS_VIEWS.as_bytes());
         }
         info!("fetching keys embedding collection");
-        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
-        let keys = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
-        let indexer: KeyViewIndexer = bincode::deserialize(&keys[..]).unwrap();
-        indexer
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        let keys = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+            .map_err(ValentinusError::DatabaseError)?;
+        let indexer: KeyViewIndexer = bincode::deserialize(&keys[..]).unwrap_or_default();
+        Ok(indexer)
     }
     /// Send a cosine similarity query on a collection against a query string.
     ///
@@ -267,15 +326,15 @@ impl EmbeddingCollection {
         view_name: String,
         num_results: usize,
         f_where: Option<Vec<String>>,
-    ) -> CosineQueryResult {
+    ) -> Result<CosineQueryResult, ValentinusError> {
         let is_filtering = f_where.is_some();
         info!("querying {} embedding collection", view_name);
-        let collection: EmbeddingCollection = find(None, Some(view_name));
+        let collection: EmbeddingCollection = find(None, Some(view_name))?;
         let qv_string = vec![query_string];
         let qv_output = batch_embeddings(&collection.model_path, &qv_string);
         if qv_output.is_err() {
             error!("failed to generate embeddings for query vector");
-            return Default::default();
+            return Err(ValentinusError::CosineError);
         }
         let qv = qv_output.unwrap_or_default();
         let cv = collection.embeddings;
@@ -300,26 +359,29 @@ impl EmbeddingCollection {
             }
         }
         if r_docs.len() < num_results || num_results == 0 {
-            CosineQueryResult::create(r_docs, r_sims, r_meta)
+            Ok(CosineQueryResult::create(r_docs, r_sims, r_meta))
         } else {
-            CosineQueryResult::create(
+            Ok(CosineQueryResult::create(
                 r_docs[0..num_results].to_vec(),
                 r_sims[0..num_results].to_vec(),
                 r_meta[0..num_results].to_vec(),
-            )
+            ))
         }
     }
     /// Calculate the nearest vector using KdTree with eclidean distance.
     ///
     /// Returns `String` of the document matching the nearest embedding.
-    pub fn nearest_query(query_string: String, view_name: String) -> String {
+    pub fn nearest_query(
+        query_string: String,
+        view_name: String,
+    ) -> Result<String, ValentinusError> {
         info!("querying {} embedding collection for nearest", view_name);
-        let collection: EmbeddingCollection = find(None, Some(view_name));
+        let collection: EmbeddingCollection = find(None, Some(view_name))?;
         let qv_string = vec![query_string];
         let qv_output = batch_embeddings(&collection.model_path, &qv_string);
         if qv_output.is_err() {
             error!("failed to generate embeddings for query vector");
-            return Default::default();
+            return Err(ValentinusError::NearestError);
         }
         let qv = qv_output.unwrap_or_default();
         let cv = collection.embeddings;
@@ -327,26 +389,33 @@ impl EmbeddingCollection {
         // Kdtree using Euclidean distance
         let nn = CommonNearestNeighbour::KdTree
             .from_batch(&cv, L2Dist)
-            .unwrap();
+            .map_err(|_| ValentinusError::NearestError)?;
         // Compute the nearest point to the query vector
-        let nearest = nn.k_nearest(qv.index_axis(Axis(0), 0), 1).unwrap();
+        let nearest = nn
+            .k_nearest(qv.index_axis(Axis(0), 0), 1)
+            .map_err(|_| ValentinusError::NearestError)?;
         let location = cv
             .axis_iter(Axis(0))
             .position(|x| x.to_vec() == nearest[0].0.to_vec());
         if location.is_none() {
             log::error!("could not compute nearest");
-            return Default::default();
+            return Err(ValentinusError::NearestError);
         }
-        String::from(&collection.documents[location.unwrap()])
+        let l = location.unwrap_or_default();
+        Ok(String::from(&collection.documents[l]))
     }
     /// Delete a collection from the database
-    pub fn delete(view_name: String) {
+    pub fn delete(view_name: String) -> Result<(), ValentinusError> {
         info!("deleting {} embedding collection", view_name);
-        let collection: EmbeddingCollection = find(None, Some(view_name));
-        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
+        let collection: EmbeddingCollection = find(None, Some(view_name))?;
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
         let s_key = collection.key;
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
-        DatabaseEnvironment::delete(&db.env, &db.handle, &b_key);
+        DatabaseEnvironment::delete(&db.env, &handle, &b_key)
+            .map_err(ValentinusError::DatabaseError)?;
+        Ok(())
     }
     /// Getter for documents
     pub fn get_documents(&self) -> &Vec<String> {
@@ -373,11 +442,14 @@ impl EmbeddingCollection {
         self.embeddings = embeddings;
     }
     /// Sets the list of views in the database
-    fn set_view_indexes(&self) {
-        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
+    fn set_view_indexes(&self) -> Result<(), ValentinusError> {
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
         let b_key: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
         // get the current indexes
-        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
+        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+            .map_err(ValentinusError::DatabaseError)?;
         let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
         let mut current_keys: Vec<String> = Vec::new();
         if !kv_index.values.is_empty() {
@@ -388,17 +460,24 @@ impl EmbeddingCollection {
         // set the new index
         current_keys.push(String::from(&self.view));
         let v_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
-        let b_v_indexer: Vec<u8> = bincode::serialize(&v_indexer).unwrap();
-        DatabaseEnvironment::delete(&db.env, &db.handle, &b_key);
-        write_chunks(&db.env, &db.handle, &b_key, &b_v_indexer);
+        let b_v_indexer: Vec<u8> =
+            bincode::serialize(&v_indexer).map_err(|_| ValentinusError::BincodeError)?;
+        DatabaseEnvironment::delete(&db.env, &handle, &b_key)
+            .map_err(ValentinusError::DatabaseError)?;
+        write_chunks(&db.env, &handle, &b_key, &b_v_indexer)
+            .map_err(ValentinusError::DatabaseError)?;
+        Ok(())
     }
     /// Sets the lists of keys in the database
-    fn set_key_indexes(&self) {
+    fn set_key_indexes(&self) -> Result<(), ValentinusError> {
         // set the keys indexer
-        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
         let b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
         // get the current indexes
-        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
+        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+            .map_err(ValentinusError::DatabaseError)?;
         let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
         let mut current_keys: Vec<String> = Vec::new();
         if !kv_index.values.is_empty() {
@@ -409,41 +488,57 @@ impl EmbeddingCollection {
         // set the new index
         current_keys.push(String::from(&self.key));
         let k_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
-        let b_k_indexer: Vec<u8> = bincode::serialize(&k_indexer).unwrap();
-        write_chunks(&db.env, &db.handle, &b_key, &b_k_indexer);
+        let b_k_indexer: Vec<u8> =
+            bincode::serialize(&k_indexer).map_err(|_| ValentinusError::BincodeError)?;
+        write_chunks(&db.env, &handle, &b_key, &b_k_indexer)
+            .map_err(ValentinusError::DatabaseError)?;
+        Ok(())
     }
     /// Sets key-to-view lookups
-    fn set_kv_index(&self) {
-        let db: DatabaseEnvironment = DatabaseEnvironment::open(COLLECTIONS);
+    fn set_kv_index(&self) -> Result<(), ValentinusError> {
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
         let kv_lookup_key: String = format!("{}-{}", VALENTINUS_KEY, self.view);
         let b_kv_lookup_key: Vec<u8> = Vec::from(kv_lookup_key.as_bytes());
         let kv_lookup_value: String = String::from(&self.key);
         let b_v_indexer: Vec<u8> = Vec::from(kv_lookup_value.as_bytes());
-        write_chunks(&db.env, &db.handle, &b_kv_lookup_key, &b_v_indexer);
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        write_chunks(&db.env, &handle, &b_kv_lookup_key, &b_v_indexer)
+            .map_err(ValentinusError::DatabaseError)?;
+        Ok(())
     }
 }
 
 /// Look up a collection by key or view. If both key and view are passed,
 ///
 /// then key lookup will override the latter.
-fn find(key: Option<String>, view: Option<String>) -> EmbeddingCollection {
+fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollection, ValentinusError> {
     if key.is_some() {
-        let db = DatabaseEnvironment::open(COLLECTIONS);
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
         let s_key = key.unwrap_or_default();
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
-        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key);
-        let result: EmbeddingCollection = bincode::deserialize(&collection[..]).unwrap();
-        result
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+            .map_err(ValentinusError::DatabaseError)?;
+        let result: EmbeddingCollection =
+            bincode::deserialize(&collection[..]).map_err(|_| ValentinusError::BincodeError)?;
+        Ok(result)
     } else {
         info!("performing key view lookup");
-        let db = DatabaseEnvironment::open(COLLECTIONS);
+        let db: DatabaseEnvironment =
+            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
         let s_view = view.unwrap_or_default();
         let kv_lookup: String = format!("{}-{}", VALENTINUS_KEY, s_view);
         let b_kv_lookup: Vec<u8> = Vec::from(kv_lookup.as_bytes());
-        let key: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_kv_lookup);
-        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &key);
-        let result: EmbeddingCollection = bincode::deserialize(&collection[..]).unwrap();
-        result
+        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        let key: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_kv_lookup)
+            .map_err(ValentinusError::DatabaseError)?;
+        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &key)
+            .map_err(ValentinusError::DatabaseError)?;
+        let result: EmbeddingCollection =
+            bincode::deserialize(&collection[..]).map_err(|_| ValentinusError::BincodeError)?;
+        Ok(result)
     }
 }
 
@@ -465,7 +560,7 @@ mod tests {
     }
 
     #[test]
-    fn cosine_etl_test() {
+    fn cosine_etl_test() -> Result<(), ValentinusError> {
         let mut documents: Vec<String> = Vec::new();
         let mut metadata: Vec<Vec<String>> = Vec::new();
         // https://www.kaggle.com/datasets/ankkur13/edmundsconsumer-car-ratings-and-reviews?resource=download&select=Scraped_Car_Review_tesla.csv
@@ -500,11 +595,11 @@ mod tests {
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
         let mut ec: EmbeddingCollection =
-            EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path);
+            EmbeddingCollection::new(documents, metadata, ids, name, model_type, model_path)?;
         let created_docs: &Vec<String> = ec.get_documents();
         assert_eq!(expected, created_docs.to_vec());
         // save collection to db
-        ec.save();
+        ec.save()?;
         // query the collection
         let query_string: &String = &String::from("Find the best reviews.");
         let result: CosineQueryResult = EmbeddingCollection::cosine_query(
@@ -515,7 +610,7 @@ mod tests {
                 String::from(r#"{ "Year":   {"eq": 2017} }"#),
                 String::from(r#"{ "Rating": {"gt": 3} }"#),
             ]),
-        );
+        )?;
         assert_eq!(result.get_docs().len(), 10);
         let v_year: Result<Value, serde_json::Error> =
             serde_json::from_str(&result.get_metadata()[0][0]);
@@ -523,21 +618,32 @@ mod tests {
             serde_json::from_str(&result.get_metadata()[0][1]);
         let rating_filter: u64 = 3;
         let year_filter: u64 = 2017;
-        assert!(v_rating.unwrap()["Rating"].as_u64().unwrap_or(0) > rating_filter);
-        assert_eq!(v_year.unwrap()["Year"].as_u64().unwrap_or(0), year_filter);
+        assert!(
+            v_rating.map_err(|_| ValentinusError::TestError)?["Rating"]
+                .as_u64()
+                .unwrap_or(0)
+                > rating_filter
+        );
+        assert_eq!(
+            v_year.map_err(|_| ValentinusError::TestError)?["Year"]
+                .as_u64()
+                .unwrap_or(0),
+            year_filter
+        );
         let no_filter_result: CosineQueryResult = EmbeddingCollection::cosine_query(
             String::from(query_string),
             String::from(ec.get_view()),
             5,
             None,
-        );
+        )?;
         assert_eq!(no_filter_result.get_docs().len(), 5);
         // remove collection from db
-        EmbeddingCollection::delete(String::from(ec.get_view()));
+        EmbeddingCollection::delete(String::from(ec.get_view()))?;
+        Ok(())
     }
 
     #[test]
-    fn nearest_test() {
+    fn nearest_test() -> Result<(), ValentinusError> {
         let slice_documents: [&str; 10] = [
         "The latest iPhone model comes with impressive features and a powerful camera.",
         "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
@@ -571,17 +677,18 @@ mod tests {
             name,
             model_type,
             model_path,
-        );
+        )?;
         let created_docs: &Vec<String> = ec.get_documents();
         assert_eq!(expected, created_docs.to_vec());
         // save collection to db
-        ec.save();
+        ec.save()?;
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
         let result: String =
-            EmbeddingCollection::nearest_query(query_string, String::from(&ec.view));
+            EmbeddingCollection::nearest_query(query_string, String::from(&ec.view))?;
         assert_eq!(result, documents[3]);
         // remove collection from db
-        EmbeddingCollection::delete(String::from(&ec.view));
+        EmbeddingCollection::delete(String::from(&ec.view))?;
+        Ok(())
     }
 }

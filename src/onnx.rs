@@ -20,8 +20,14 @@ const VALENTINUS_CUSTOM_DIM: &str = "VALENTINUS_CUSTOM_DIM";
 /// Environment variable for parallel execution threads count
 const ONNX_PARALLEL_THREADS: &str = "ONNX_PARALLEL_THREADS";
 
+#[derive(Debug)]
+pub enum OnnxError {
+    OrtError(ort::Error),
+    ShapeError(ShapeError),
+}
+
 /// ONNX Embeddings generator
-fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f32>, ort::Error> {
+fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f32>, OnnxError> {
     let threads: usize = match std::env::var(ONNX_PARALLEL_THREADS) {
         Err(_) => 1,
         Ok(t) => t.parse::<usize>().unwrap_or(1),
@@ -34,18 +40,18 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
     ort::init()
         .with_name("valentinus")
         .with_execution_providers([CUDAExecutionProvider::default().build()])
-        .commit()
-        .unwrap();
+        .commit().map_err(OnnxError::OrtError)?;
     // Load our model
-    let session = Session::builder()
-        .unwrap()
-        .with_optimization_level(GraphOptimizationLevel::Level1)?
-        .with_parallel_execution(threads > 1)?
-        .with_intra_threads(threads)?
-        .commit_from_file(format!("{}/model.onnx", model_path))?;
-    let tokenizer = Tokenizer::from_file(format!("{}/tokenizer.json", model_path))?;
+    let session = Session::builder().map_err(OnnxError::OrtError)?
+        .with_optimization_level(GraphOptimizationLevel::Level1).map_err(OnnxError::OrtError)?
+        .with_parallel_execution(threads > 1).map_err(OnnxError::OrtError)?
+        .with_intra_threads(threads).map_err(OnnxError::OrtError)?
+        .commit_from_file(format!("{}/model.onnx", model_path)).map_err(OnnxError::OrtError)?;
+    let tokenizer = Tokenizer::from_file(format!("{}/tokenizer.json", model_path))
+        .map_err(|e| OnnxError::OrtError(ort::Error::CustomError(e)))?;
     // Encode our input strings. `encode_batch` will pad each input to be the same length.
-    let encodings = tokenizer.encode_batch(data.to_vec(), false)?;
+    let encodings = tokenizer.encode_batch(data.to_vec(), false)
+        .map_err(|e| OnnxError::OrtError(ort::Error::CustomError(e)))?;
     // Get the padded length of each encoding.
     let padded_token_length = encodings[0].len();
     // Get our token IDs & mask as a flattened array.
@@ -58,15 +64,14 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         .flat_map(|e| e.get_attention_mask().iter().map(|i| *i as i64))
         .collect();
     // Convert our flattened arrays into 2-dimensional tensors of shape [N, L].
-    let a_ids = Array2::from_shape_vec([data.len(), padded_token_length], ids).unwrap();
-    let a_mask = Array2::from_shape_vec([data.len(), padded_token_length], mask).unwrap();
+    let a_ids = Array2::from_shape_vec([data.len(), padded_token_length], ids).map_err(OnnxError::ShapeError)?;
+    let a_mask = Array2::from_shape_vec([data.len(), padded_token_length], mask).map_err(OnnxError::ShapeError)?;
     // Run the model.
-    let outputs = session.run(ort::inputs![a_ids, a_mask]?)?;
+    let outputs = session.run(ort::inputs![a_ids, a_mask].map_err(OnnxError::OrtError)?).map_err(OnnxError::OrtError)?;
     // Extract our embeddings tensor and convert it to a strongly-typed 2-dimensional array.
     let embeddings = outputs[1]
-        .try_extract_tensor::<f32>()?
-        .into_dimensionality::<Ix2>()
-        .unwrap();
+        .try_extract_tensor::<f32>().map_err(OnnxError::OrtError)?
+        .into_dimensionality::<Ix2>().map_err(OnnxError::ShapeError)?;
     Ok(embeddings.into_owned())
 }
 
