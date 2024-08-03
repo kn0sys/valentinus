@@ -63,7 +63,10 @@ impl DatabaseEnvironment {
             panic!("could not set db handle")
         }
         let handle: DbHandle = default?;
-        Ok(DatabaseEnvironment { env, handle: Ok(handle) })
+        Ok(DatabaseEnvironment {
+            env,
+            handle: Ok(handle),
+        })
     }
     /// Write a key/value pair to the database. It is not possible to
     ///
@@ -120,7 +123,7 @@ impl DatabaseEnvironment {
         Ok(result)
     }
     /// Deletes a key/value pair from the database
-    pub fn delete(e: &Environment, h: &DbHandle, k: &[u8]) -> Result<(), MdbError>{
+    pub fn delete(e: &Environment, h: &DbHandle, k: &[u8]) -> Result<(), MdbError> {
         info!("excecuting lmdb delete");
         if k.is_empty() {
             error!("can't delete empty key");
@@ -167,7 +170,12 @@ pub fn write_chunks(e: &Environment, h: &DbHandle, k: &[u8], v: &[u8]) -> Result
         old_key.append(&mut append);
         if length > chunk_size && (length - index > chunk_size) {
             // write chunks until the last value which is smaller than chunk_size
-            let _ = DatabaseEnvironment::write(e, h, &old_key, &v[index..(chunk_size * writes)].to_vec());
+            let _ = DatabaseEnvironment::write(
+                e,
+                h,
+                &old_key,
+                &v[index..(chunk_size * writes)].to_vec(),
+            );
             index += chunk_size;
             writes += 1;
         } else {
@@ -187,7 +195,7 @@ mod tests {
     use rand::RngCore;
 
     #[test]
-    fn environment_test() -> Result<(), MdbError>{
+    fn environment_test() -> Result<(), MdbError> {
         let db = DatabaseEnvironment::open("10-mb-test")?;
         const DATA_SIZE_10MB: usize = 10000000;
         let mut data = vec![0u8; DATA_SIZE_10MB];

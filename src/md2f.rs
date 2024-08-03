@@ -1,8 +1,8 @@
 use log::{debug, info};
 use serde_json::Value;
 
-/// Possible errors while filtering may be due to 
-/// 
+/// Possible errors while filtering may be due to
+///
 /// parsing, invalid operation value etc.
 #[derive(Debug)]
 pub enum Md2fsError {
@@ -51,7 +51,7 @@ struct MetadataFilter<T> {
     filter: FilterOperations,
 }
 
-impl <T: std::default::Default> Default for MetadataFilter<T> {
+impl<T: Default> Default for MetadataFilter<T> {
     fn default() -> Self {
         MetadataFilter {
             key: Default::default(),
@@ -70,8 +70,9 @@ trait Filter<T> {
     fn lte(self, m: MetadataFilter<T>) -> bool;
 }
 
-impl <T>Filter<T> for MetadataFilter<T>
-where T: PartialEq + PartialOrd + Default
+impl<T> Filter<T> for MetadataFilter<T>
+where
+    T: PartialEq + PartialOrd + Default,
 {
     /// Create a filter on a valid string value
     fn create_filter(raw: &str) -> Result<MetadataFilterResult, Md2fsError> {
@@ -87,11 +88,11 @@ where T: PartialEq + PartialOrd + Default
         }
         let key = match vo {
             Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
-            _=> String::new()
+            _ => String::new(),
         };
         let vo2 = match vo {
             Some(v) => v[&key].as_object(),
-            _=> None
+            _ => None,
         };
         if vo2.is_none() {
             info!("no op key found, processing as metadata");
@@ -102,47 +103,53 @@ where T: PartialEq + PartialOrd + Default
             if p_value.is_string() {
                 let value: String = match p_value.as_str() {
                     Some(s) => s.to_string(),
-                    _=> String::new(),
+                    _ => String::new(),
                 };
                 let filter: FilterOperations = FilterOperations::Noop;
-                return Ok(
-                    MetadataFilterResult::StringFilter(MetadataFilter { key, filter, value })
-                );
+                return Ok(MetadataFilterResult::StringFilter(MetadataFilter {
+                    key,
+                    filter,
+                    value,
+                }));
             } else {
                 let value: u64 = p_value.as_u64().unwrap_or_default();
                 let filter: FilterOperations = FilterOperations::Noop;
-                return Ok(
-                    MetadataFilterResult::U64Filter(MetadataFilter { key, filter, value })
-                );
+                return Ok(MetadataFilterResult::U64Filter(MetadataFilter {
+                    key,
+                    filter,
+                    value,
+                }));
             }
         }
         let op = match vo2 {
             Some(v) => v.keys().collect::<Vec<&String>>()[0].to_string(),
-            _=> String::new(),
+            _ => String::new(),
         };
         let value = match vo2 {
             Some(v) => &v[&op],
-            _=> &Value::String(String::new()),
+            _ => &Value::String(String::new()),
         };
         let filter: FilterOperations = FilterOperations::get_enum(&op);
         if value.is_string() {
             let value = match value.as_str() {
                 Some(s) => s.to_string(),
-                _=> String::new(),
+                _ => String::new(),
             };
-            return Ok(
-                MetadataFilterResult::StringFilter(MetadataFilter { key, filter, value })
-            );
+            return Ok(MetadataFilterResult::StringFilter(MetadataFilter {
+                key,
+                filter,
+                value,
+            }));
         }
         if value.is_u64() {
             let value = value.as_u64().unwrap_or_default();
-            return Ok(
-                MetadataFilterResult::U64Filter(MetadataFilter { key, filter, value })
-            );
+            return Ok(MetadataFilterResult::U64Filter(MetadataFilter {
+                key,
+                filter,
+                value,
+            }));
         }
-        Ok(
-            MetadataFilterResult::StringFilter(Default::default())
-        )
+        Ok(MetadataFilterResult::StringFilter(Default::default()))
     }
     fn eq(self, m: MetadataFilter<T>) -> bool {
         match self.filter {
@@ -177,46 +184,42 @@ where T: PartialEq + PartialOrd + Default
 }
 
 fn process_filter(raw_f: &str, raw_m: &str) -> Result<bool, Md2fsError> {
-    let try_filter: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<String>::create_filter(raw_f);
-    let try_meta: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<String>::create_filter(raw_m);
+    let try_filter: Result<MetadataFilterResult, Md2fsError> =
+        MetadataFilter::<String>::create_filter(raw_f);
+    let try_meta: Result<MetadataFilterResult, Md2fsError> =
+        MetadataFilter::<String>::create_filter(raw_m);
     debug!("debug -> {:?}", try_meta);
     let tf = try_filter?;
     let tm = try_meta?;
     let string_filter = match tf {
-        MetadataFilterResult::StringFilter(fstr) => {
-            match tm {
-                MetadataFilterResult::StringFilter(mstr) => {
-                    match fstr.filter {
-                        FilterOperations::EqualTo => Ok(fstr.eq(mstr)),
-                        _=> Ok(false)
-                    }
-                }
-                _=> Ok(false)
-            }
+        MetadataFilterResult::StringFilter(fstr) => match tm {
+            MetadataFilterResult::StringFilter(mstr) => match fstr.filter {
+                FilterOperations::EqualTo => Ok(fstr.eq(mstr)),
+                _ => Ok(false),
+            },
+            _ => Ok(false),
         },
-        _=> Ok(false)
+        _ => Ok(false),
     }?;
-    let try_filter: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<u64>::create_filter(raw_f);
-    let try_meta: Result<MetadataFilterResult, Md2fsError> = MetadataFilter::<u64>::create_filter(raw_m);
+    let try_filter: Result<MetadataFilterResult, Md2fsError> =
+        MetadataFilter::<u64>::create_filter(raw_f);
+    let try_meta: Result<MetadataFilterResult, Md2fsError> =
+        MetadataFilter::<u64>::create_filter(raw_m);
     let tf = try_filter?;
     let tm = try_meta?;
     let u64_filter = match tf {
-        MetadataFilterResult::U64Filter(fu64) => {
-            match tm {
-                MetadataFilterResult::U64Filter(mu64) => {
-                    match fu64.filter {
-                        FilterOperations::EqualTo => Ok(fu64.eq(mu64)),
-                        FilterOperations::GreaterThan => Ok(fu64.gt(mu64)),
-                        FilterOperations::GreaterThanEqualTo => Ok(fu64.gte(mu64)),
-                        FilterOperations::LessThan => Ok(fu64.lt(mu64)),
-                        FilterOperations::LessThanEqualTo => Ok(fu64.lte(mu64)),
-                        _=> Ok(false)
-                    }
-                }
-                _=> Ok(false)
-            }
+        MetadataFilterResult::U64Filter(fu64) => match tm {
+            MetadataFilterResult::U64Filter(mu64) => match fu64.filter {
+                FilterOperations::EqualTo => Ok(fu64.eq(mu64)),
+                FilterOperations::GreaterThan => Ok(fu64.gt(mu64)),
+                FilterOperations::GreaterThanEqualTo => Ok(fu64.gte(mu64)),
+                FilterOperations::LessThan => Ok(fu64.lt(mu64)),
+                FilterOperations::LessThanEqualTo => Ok(fu64.lte(mu64)),
+                _ => Ok(false),
+            },
+            _ => Ok(false),
         },
-        _=> Ok(false)
+        _ => Ok(false),
     }?;
     Ok(string_filter || u64_filter)
 }

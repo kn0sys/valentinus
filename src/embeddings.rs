@@ -350,7 +350,8 @@ impl EmbeddingCollection {
             let index: Option<usize> = docs.iter().rposition(|x| x == sentence);
             let raw_f: &Vec<String> = &f_where.clone().unwrap_or_default();
             let raw_m: &Vec<String> = &collection.metadata[index.unwrap_or_default()];
-            let f_where: bool = filter_where(raw_f, raw_m).map_err(|_| ValentinusError::Md2fsError)?;
+            let f_where: bool =
+                filter_where(raw_f, raw_m).map_err(|_| ValentinusError::Md2fsError)?;
             if !is_filtering || f_where {
                 // Calculate cosine similarity against the 'query' sentence.
                 let dot_product: f32 = query.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
