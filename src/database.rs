@@ -2,10 +2,9 @@
 
 //! Logic for interfacing with LMDB.
 
-extern crate lmdb_rs as lmdb;
+extern crate kn0sys_lmdb_rs as lmdb;
 
-use lmdb::{DbFlags, DbHandle, EnvBuilder, Environment};
-use lmdb_rs::{Database, MdbError};
+use lmdb::*;
 use log::{error, info};
 use sysinfo::System;
 
@@ -58,7 +57,7 @@ impl DatabaseEnvironment {
             .map_size(env_map_size)
             .open(format!("{}/{}", file_path, env), 0o777)
             .unwrap_or_else(|_| panic!("could not open LMDB at {}", file_path));
-        let default: Result<DbHandle, lmdb_rs::MdbError> = env.get_default_db(DbFlags::empty());
+        let default: Result<DbHandle, MdbError> = env.get_default_db(DbFlags::empty());
         if default.is_err() {
             panic!("could not set db handle")
         }
@@ -102,7 +101,7 @@ impl DatabaseEnvironment {
             return Err(MdbError::NotFound);
         }
         let get_reader = e.get_reader();
-        let reader: lmdb_rs::ReadonlyTransaction = get_reader?;
+        let reader: ReadonlyTransaction = get_reader?;
         let db: Database = reader.bind(h);
         let mut result: Vec<u8> = Vec::new();
         for num_writes in 0..usize::MAX {
@@ -132,7 +131,7 @@ impl DatabaseEnvironment {
         let new_txn = e.new_transaction();
         let txn = new_txn?;
         let get_reader = e.get_reader();
-        let reader: lmdb_rs::ReadonlyTransaction = get_reader?;
+        let reader: ReadonlyTransaction = get_reader?;
         let db_reader: Database = reader.bind(h);
         {
             let db = txn.bind(h);

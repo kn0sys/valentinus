@@ -92,7 +92,7 @@
 use distance::L2Dist;
 use lazy_static::lazy_static;
 use linfa_nn::*;
-use lmdb_rs::MdbError;
+use kn0sys_lmdb_rs::MdbError;
 use ndarray::*;
 use regex::Regex;
 use serde::Deserialize;

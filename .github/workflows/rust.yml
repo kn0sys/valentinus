@@ -18,19 +18,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-          all-Mini-LM-L6-v2_onnx/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - uses: actions/checkout@v4
     - name: Install dependencies
       run: |
+        rustup toolchain install nightly
         mkdir all-Mini-LM-L6-v2_onnx
         cd all-Mini-LM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
@@ -39,7 +30,7 @@ jobs:
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
     - name: build and clippy
-      run: cargo build && cargo clippy
+      run: RUSTFLAGS="-Z threads=2" cargo +nightly check --future-incompat-report && cargo clippy
     - name: database test
       run: |
         export LMDB_USER=$USER
