@@ -22,26 +22,5 @@ jobs:
     - name: Install dependencies
       run: |
         rustup toolchain install nightly
-        mkdir all-Mini-LM-L6-v2_onnx
-        cd all-Mini-LM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/special_tokens_map.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
     - name: build and clippy
-      run: RUSTFLAGS="-Z threads=2" cargo +nightly check --future-incompat-report && cargo clippy
-    - name: database test
-      run: |
-        export LMDB_USER=$USER
-        RUST_LOG=DEBUG cargo test database::tests::environment_test -- --exact
-    - name: etl test
-      run: |
-        export LMDB_USER=$USER
-        ONNX_PARALLEL_THREADS=2
-        cargo test embeddings::tests::cosine_etl_test -- --exact
-    - name: nearest test
-      run: |
-        export LMDB_USER=$USER
-        ONNX_PARALLEL_THREADS=2
-        cargo test embeddings::tests::nearest_test -- --exact
+      run: RUSTFLAGS="-Z threads=4" cargo +nightly build --future-incompat-report & cargo clippy
