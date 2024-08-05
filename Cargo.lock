@@ -531,9 +531,9 @@ dependencies = [
 
 [[package]]
 name = "kn0sys-lmdb-rs"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b11bf34957eb3ea5f205c92ad55c304a8ad2e81cfe3784f8d27d5c7dd3fe10ba"
+checksum = "cedf4fddfad485923a1ba0dac36a6730f8baf71a493077ee43cdc25e8a9c25a9"
 dependencies = [
  "bitflags 2.6.0",
  "libc",
