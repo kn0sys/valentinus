@@ -689,10 +689,10 @@ mod tests {
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
         let result: String =
-            EmbeddingCollection::nearest_query(query_string, String::from(&ec.view))?;
+            EmbeddingCollection::nearest_query(query_string, String::from(ec.get_view()))?;
         assert_eq!(result, documents[3]);
         // remove collection from db
-        EmbeddingCollection::delete(String::from(&ec.view))?;
+        EmbeddingCollection::delete(String::from(ec.get_view()))?;
         Ok(())
     }
 }

@@ -1,7 +1,6 @@
-```rust
 use valentinus::embeddings::*;
 
-fn foo() {
+fn main() -> Result<(), ValentinusError> {
     let slice_documents: [&str; 10] = [
     "The latest iPhone model comes with impressive features and a powerful camera.",
     "Exploring the beautiful beaches and vibrant culture of Bali is a dream for many travelers.",
@@ -29,17 +28,23 @@ fn foo() {
     let model_path = String::from("all-Mini-LM-L6-v2_onnx");
     let model_type = ModelType::AllMiniLmL6V2;
     let mut ec: EmbeddingCollection = EmbeddingCollection::new(
-        documents.clone(), vec![metadata], ids, name, model_type, model_path
-    );
+        documents.clone(),
+        vec![metadata],
+        ids,
+        name,
+        model_type,
+        model_path,
+    )?;
     let created_docs: &Vec<String> = ec.get_documents();
     assert_eq!(expected, created_docs.to_vec());
     // save collection to db
-    ec.save();
+    ec.save()?;
     // query the collection
     let query_string: String = String::from("Find me some delicious food!");
-    let result: String = EmbeddingCollection::nearest_query(query_string, String::from(&ec.view));
+    let result: String =
+        EmbeddingCollection::nearest_query(query_string, String::from(ec.get_view()))?;
     assert_eq!(result, documents[3]);
     // remove collection from db
-    EmbeddingCollection::delete(String::from(&ec.view));
+    EmbeddingCollection::delete(String::from(ec.get_view()))?;
+    Ok(())
 }
-```
