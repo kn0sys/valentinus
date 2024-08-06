@@ -327,7 +327,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f2c92ceda6ceec50f43169f9ee8424fe2db276791afde7b2cd8bc084cb376ab"
 dependencies = [
- "log 0.4.22",
+ "log",
  "regex",
 ]
 
@@ -341,7 +341,7 @@ dependencies = [
  "anstyle",
  "env_filter",
  "humantime",
- "log 0.4.22",
+ "log",
 ]
 
 [[package]]
@@ -531,14 +531,14 @@ dependencies = [
 
 [[package]]
 name = "kn0sys-lmdb-rs"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cedf4fddfad485923a1ba0dac36a6730f8baf71a493077ee43cdc25e8a9c25a9"
+checksum = "29e0b46b27729cc3238baa573fe2f4df74af76ad1fdb576ff9ccabb97ecf756c"
 dependencies = [
  "bitflags 2.6.0",
  "libc",
  "liblmdb-sys",
- "log 0.3.9",
+ "log",
 ]
 
 [[package]]
@@ -598,15 +598,6 @@ name = "linux-raw-sys"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
-
-[[package]]
-name = "log"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
-dependencies = [
- "log 0.4.22",
-]
 
 [[package]]
 name = "log"
@@ -1016,7 +1007,7 @@ version = "0.23.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4828ea528154ae444e5a642dbb7d5623354030dc9822b83fd9bb79683c7399d0"
 dependencies = [
- "log 0.4.22",
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -1233,7 +1224,7 @@ dependencies = [
  "getrandom",
  "itertools 0.12.1",
  "lazy_static",
- "log 0.4.22",
+ "log",
  "macro_rules_attribute",
  "monostate",
  "onig",
@@ -1344,7 +1335,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72139d247e5f97a3eff96229a7ae85ead5328a39efe76f8bf5a06313d505b6ea"
 dependencies = [
  "base64 0.22.1",
- "log 0.4.22",
+ "log",
  "once_cell",
  "rustls",
  "rustls-pki-types",
@@ -1389,7 +1380,7 @@ dependencies = [
  "kn0sys-lmdb-rs",
  "lazy_static",
  "linfa-nn",
- "log 0.4.22",
+ "log",
  "ndarray",
  "ort",
  "rand",
@@ -1430,7 +1421,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "614d787b966d3989fa7bb98a654e369c762374fd3213d212cfc0251257e747da"
 dependencies = [
  "bumpalo",
- "log 0.4.22",
+ "log",
  "once_cell",
  "proc-macro2",
  "quote",
