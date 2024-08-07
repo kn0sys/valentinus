@@ -48,7 +48,7 @@ wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/
 
 ### examples
 
-see [examples](./examples/cosine_query_example.md)
+see [examples](https://github.com/kn0sys/valentinus/tree/main/examples)
 
 ### reference
 
