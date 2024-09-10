@@ -26,7 +26,6 @@ crate-type = ["lib"]
 
 [dependencies]
 bincode        = "1.3.3"
-lazy_static    = "1.4.0"
 linfa-nn       = "0.7.0"
 kn0sys-lmdb-rs = "0.1.4"
 log            = "0.4"

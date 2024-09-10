@@ -90,22 +90,22 @@
 //! ```
 
 use distance::L2Dist;
-use lazy_static::lazy_static;
 use linfa_nn::*;
 use kn0sys_lmdb_rs::MdbError;
 use ndarray::*;
 use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
+use std::sync::LazyLock;
 use uuid::Uuid;
 
 use crate::{database::*, md2f::filter_where, onnx::*};
 use log::*;
 
-lazy_static! {
-    static ref VIEWS_NAMING_CHECK: Regex =
-        Regex::new("^[a-zA-Z0-9_]+$").expect("regex should be valid");
-}
+/// Views naming restriction. Required to be alphanumeric/unederscore
+static VIEWS_NAMING_CHECK: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new("^[a-zA-Z0-9_]+$").expect("regex should be valid")
+});
 
 /// Identifier for model used with the collection.
 ///
@@ -239,7 +239,7 @@ impl EmbeddingCollection {
             return Err(ValentinusError::InvalidViewName);
         }
         // check if  the views name is unique
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let views_lookup: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
         let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup)
             .map_err(ValentinusError::DatabaseError)?;
@@ -285,7 +285,7 @@ impl EmbeddingCollection {
         }
         let key = &self.key;
         let b_key = Vec::from(key.as_bytes());
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         write_chunks(&db.env, &db.handle, &b_key, &collection)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
@@ -302,7 +302,7 @@ impl EmbeddingCollection {
             b_key = Vec::from(VALENTINUS_VIEWS.as_bytes());
         }
         info!("fetching keys embedding collection");
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let keys = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
         let indexer: KeyViewIndexer = bincode::deserialize(&keys[..]).unwrap_or_default();
@@ -406,7 +406,7 @@ impl EmbeddingCollection {
     pub fn delete(view_name: String) -> Result<(), ValentinusError> {
         info!("deleting {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name))?;
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let s_key = collection.key;
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
         DatabaseEnvironment::delete(&db.env, &db.handle, &b_key)
@@ -439,7 +439,7 @@ impl EmbeddingCollection {
     }
     /// Sets the list of views in the database
     fn set_view_indexes(&self) -> Result<(), ValentinusError> {
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let b_key: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
         // get the current indexes
         let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
@@ -465,7 +465,7 @@ impl EmbeddingCollection {
     /// Sets the lists of keys in the database
     fn set_key_indexes(&self) -> Result<(), ValentinusError> {
         // set the keys indexer
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
         // get the current indexes
         let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
@@ -488,7 +488,7 @@ impl EmbeddingCollection {
     }
     /// Sets key-to-view lookups
     fn set_kv_index(&self) -> Result<(), ValentinusError> {
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let kv_lookup_key: String = format!("{}-{}", VALENTINUS_KEY, self.view);
         let b_kv_lookup_key: Vec<u8> = Vec::from(kv_lookup_key.as_bytes());
         let kv_lookup_value: String = String::from(&self.key);
@@ -504,7 +504,7 @@ impl EmbeddingCollection {
 /// then key lookup will override the latter.
 fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollection, ValentinusError> {
     if key.is_some() {
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let s_key = key.unwrap_or_default();
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
         let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
@@ -514,7 +514,7 @@ fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollection
         Ok(result)
     } else {
         info!("performing key view lookup");
-        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let s_view = view.unwrap_or_default();
         let kv_lookup: String = format!("{}-{}", VALENTINUS_KEY, s_view);
         let b_kv_lookup: Vec<u8> = Vec::from(kv_lookup.as_bytes());

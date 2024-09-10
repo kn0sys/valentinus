@@ -1371,13 +1371,12 @@ dependencies = [
 
 [[package]]
 name = "valentinus"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "bincode",
  "csv",
  "env_logger",
  "kn0sys-lmdb-rs",
- "lazy_static",
  "linfa-nn",
  "log",
  "ndarray",
