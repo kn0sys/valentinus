@@ -7,9 +7,8 @@ extern crate kn0sys_lmdb_rs as lmdb;
 use lmdb::*;
 use log::{error, info};
 use sysinfo::System;
+use std::sync::LazyLock;
 
-/// Write collections to a separate database
-pub const COLLECTIONS: &str = "collections";
 /// Keys indexer constant for writing all collections keys
 pub const VALENTINUS_KEYS: &str = "keys";
 /// Views indexer constant for writing all collections view names
@@ -23,12 +22,19 @@ const MAP_SIZE_MEMORY_RATIO: f32 = 0.2;
 /// Ratio of chunk size to available memory is 0.2 percent
 const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.01;
 
+/// Database lock is initialized on startup in order to cache the db handle
+pub static DATABASE_LOCK: LazyLock<DatabaseEnvironment> = LazyLock::new(|| {
+    let env = std::env::var("VALENTINUS_LMDB_ENV").unwrap_or(String::from("test"));
+    DatabaseEnvironment::open(&env).unwrap()
+});
+
+
 /// The database environment for handling primary database operations.
 ///
 /// By default the database will be written to /home/user/.valentinus/{ENV}/lmdb
 pub struct DatabaseEnvironment {
     pub env: Environment,
-    pub handle: Result<DbHandle, MdbError>,
+    pub handle: DbHandle,
 }
 
 impl DatabaseEnvironment {
@@ -64,9 +70,10 @@ impl DatabaseEnvironment {
         let handle: DbHandle = default?;
         Ok(DatabaseEnvironment {
             env,
-            handle: Ok(handle),
+            handle,
         })
     }
+
     /// Write a key/value pair to the database. It is not possible to
     ///
     /// write with empty keys.
@@ -195,30 +202,25 @@ mod tests {
 
     #[test]
     fn environment_test() -> Result<(), MdbError> {
-        let db = DatabaseEnvironment::open("10-mb-test")?;
+        let db = &*DATABASE_LOCK;
         const DATA_SIZE_10MB: usize = 10000000;
         let mut data = vec![0u8; DATA_SIZE_10MB];
         rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();
-        write_chunks(&db.env, &db.handle?, &Vec::from(k), &Vec::from(data))?;
-        let db = DatabaseEnvironment::open("10-mb-test")?;
-        let actual = DatabaseEnvironment::read(&db.env, &db.handle?, &Vec::from(k));
+        write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data))?;
+        let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
         assert_eq!(expected.to_vec(), actual?);
-        let db = DatabaseEnvironment::open("10-mb-test")?;
-        let _ = DatabaseEnvironment::delete(&db.env, &db.handle?, &Vec::from(k));
-        let db = DatabaseEnvironment::open("100-mb-test")?;
+        let _ = DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
         const DATA_SIZE_100MB: usize = 100000000;
         let mut data = vec![0u8; DATA_SIZE_100MB];
         rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();
-        write_chunks(&db.env, &db.handle?, &Vec::from(k), &Vec::from(data))?;
-        let db = DatabaseEnvironment::open("100-mb-test")?;
-        let actual = DatabaseEnvironment::read(&db.env, &db.handle?, &Vec::from(k));
+        write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data))?;
+        let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
         assert_eq!(expected.to_vec(), actual?);
-        let db = DatabaseEnvironment::open("100-mb-test")?;
-        let _ = DatabaseEnvironment::delete(&db.env, &db.handle?, &Vec::from(k));
+        let _ = DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
         Ok(())
     }
 }

@@ -239,11 +239,9 @@ impl EmbeddingCollection {
             return Err(ValentinusError::InvalidViewName);
         }
         // check if  the views name is unique
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
         let views_lookup: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
-        let views = DatabaseEnvironment::read(&db.env, &handle, &views_lookup)
+        let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup)
             .map_err(ValentinusError::DatabaseError)?;
         if !views.is_empty() {
             let view_indexer: KeyViewIndexer =
@@ -287,10 +285,8 @@ impl EmbeddingCollection {
         }
         let key = &self.key;
         let b_key = Vec::from(key.as_bytes());
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
-        write_chunks(&db.env, &handle, &b_key, &collection)
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        write_chunks(&db.env, &db.handle, &b_key, &collection)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
     }
@@ -306,10 +302,8 @@ impl EmbeddingCollection {
             b_key = Vec::from(VALENTINUS_VIEWS.as_bytes());
         }
         info!("fetching keys embedding collection");
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
-        let keys = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
+        let keys = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
         let indexer: KeyViewIndexer = bincode::deserialize(&keys[..]).unwrap_or_default();
         Ok(indexer)
@@ -412,12 +406,10 @@ impl EmbeddingCollection {
     pub fn delete(view_name: String) -> Result<(), ValentinusError> {
         info!("deleting {} embedding collection", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name))?;
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
         let s_key = collection.key;
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
-        DatabaseEnvironment::delete(&db.env, &handle, &b_key)
+        DatabaseEnvironment::delete(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
     }
@@ -447,12 +439,10 @@ impl EmbeddingCollection {
     }
     /// Sets the list of views in the database
     fn set_view_indexes(&self) -> Result<(), ValentinusError> {
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
         let b_key: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
         // get the current indexes
-        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
         let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
         let mut current_keys: Vec<String> = Vec::new();
@@ -466,21 +456,19 @@ impl EmbeddingCollection {
         let v_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let b_v_indexer: Vec<u8> =
             bincode::serialize(&v_indexer).map_err(|_| ValentinusError::BincodeError)?;
-        DatabaseEnvironment::delete(&db.env, &handle, &b_key)
+        DatabaseEnvironment::delete(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
-        write_chunks(&db.env, &handle, &b_key, &b_v_indexer)
+        write_chunks(&db.env, &db.handle, &b_key, &b_v_indexer)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
     }
     /// Sets the lists of keys in the database
     fn set_key_indexes(&self) -> Result<(), ValentinusError> {
         // set the keys indexer
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
         let b_key: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
         // get the current indexes
-        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+        let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
         let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
         let mut current_keys: Vec<String> = Vec::new();
@@ -494,20 +482,18 @@ impl EmbeddingCollection {
         let k_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
         let b_k_indexer: Vec<u8> =
             bincode::serialize(&k_indexer).map_err(|_| ValentinusError::BincodeError)?;
-        write_chunks(&db.env, &handle, &b_key, &b_k_indexer)
+        write_chunks(&db.env, &db.handle, &b_key, &b_k_indexer)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
     }
     /// Sets key-to-view lookups
     fn set_kv_index(&self) -> Result<(), ValentinusError> {
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
         let kv_lookup_key: String = format!("{}-{}", VALENTINUS_KEY, self.view);
         let b_kv_lookup_key: Vec<u8> = Vec::from(kv_lookup_key.as_bytes());
         let kv_lookup_value: String = String::from(&self.key);
         let b_v_indexer: Vec<u8> = Vec::from(kv_lookup_value.as_bytes());
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
-        write_chunks(&db.env, &handle, &b_kv_lookup_key, &b_v_indexer)
+        write_chunks(&db.env, &db.handle, &b_kv_lookup_key, &b_v_indexer)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
     }
@@ -518,27 +504,23 @@ impl EmbeddingCollection {
 /// then key lookup will override the latter.
 fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollection, ValentinusError> {
     if key.is_some() {
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
         let s_key = key.unwrap_or_default();
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
-        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_key)
+        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
         let result: EmbeddingCollection =
             bincode::deserialize(&collection[..]).map_err(|_| ValentinusError::BincodeError)?;
         Ok(result)
     } else {
         info!("performing key view lookup");
-        let db: DatabaseEnvironment =
-            DatabaseEnvironment::open(COLLECTIONS).map_err(ValentinusError::DatabaseError)?;
+        let db: &DatabaseEnvironment = &*DATABASE_LOCK;
         let s_view = view.unwrap_or_default();
         let kv_lookup: String = format!("{}-{}", VALENTINUS_KEY, s_view);
         let b_kv_lookup: Vec<u8> = Vec::from(kv_lookup.as_bytes());
-        let handle = db.handle.map_err(ValentinusError::DatabaseError)?;
-        let key: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &b_kv_lookup)
+        let key: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_kv_lookup)
             .map_err(ValentinusError::DatabaseError)?;
-        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &handle, &key)
+        let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &key)
             .map_err(ValentinusError::DatabaseError)?;
         let result: EmbeddingCollection =
             bincode::deserialize(&collection[..]).map_err(|_| ValentinusError::BincodeError)?;
