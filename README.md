@@ -29,6 +29,7 @@ git clone https://github.com/kn0sys/valentinus && cd valentinus
 |`LMDB_MAP_SIZE` | Sets max environment size, i.e. size in memory/disk of all data  | 20% of available memory |
 |`ONNX_PARALLEL_THREADS` | parallel execution mode for this session | 1 |
 |`VALENTINUS_CUSTOM_DIM` | embeddings dimensions for custom models | all-mini-lm-6 -> 384 |
+|`VALENTINUS_LMDB_ENV`| environment for the database (i.e. test, prod) | test |
 
 
 # tests
