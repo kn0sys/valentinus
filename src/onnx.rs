@@ -54,11 +54,11 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         .commit_from_file(format!("{}/model.onnx", model_path))
         .map_err(OnnxError::OrtError)?;
     let tokenizer = Tokenizer::from_file(format!("{}/tokenizer.json", model_path))
-        .map_err(|e| OnnxError::OrtError(ort::Error::CustomError(e)))?;
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?;
     // Encode our input strings. `encode_batch` will pad each input to be the same length.
     let encodings = tokenizer
         .encode_batch(data.to_vec(), false)
-        .map_err(|e| OnnxError::OrtError(ort::Error::CustomError(e)))?;
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?;
     // Get the padded length of each encoding.
     let padded_token_length = encodings[0].len();
     // Get our token IDs & mask as a flattened array.

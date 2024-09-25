@@ -89,8 +89,8 @@
 //! }
 //! ```
 
-use distance::L2Dist;
-use linfa_nn::*;
+use kn0sys_nn::distance::L2Dist;
+use kn0sys_nn::*;
 use kn0sys_lmdb_rs::MdbError;
 use ndarray::*;
 use regex::Regex;
