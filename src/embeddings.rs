@@ -386,7 +386,7 @@ impl EmbeddingCollection {
         info!("computing nearest embedding");
         // Kdtree using Euclidean distance
         let nn = CommonNearestNeighbour::KdTree
-            .from_batch(&cv, L2Dist)
+            .batch(&cv, L2Dist)
             .map_err(|_| ValentinusError::NearestError)?;
         // Compute the nearest point to the query vector
         let nearest = nn

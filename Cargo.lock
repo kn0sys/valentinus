@@ -522,11 +522,12 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "kdtree"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80ee359328fc9087e9e3fc0a4567c4dd27ec69a127d6a70e8d9dd22845b8b1a2"
+checksum = "0f0a0e9f770b65bac9aad00f97a67ab5c5319effed07f6da385da3c2115e47ba"
 dependencies = [
  "num-traits",
+ "thiserror",
 ]
 
 [[package]]
@@ -543,9 +544,9 @@ dependencies = [
 
 [[package]]
 name = "kn0sys-nn"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd62bc03c0e0553c265fd8988961578602fcce846ddc8852cabed6c8f19f6799"
+checksum = "b11a629f8719177d07faf3aff57cab6514474d9f37037f691c15be4d97350afa"
 dependencies = [
  "kdtree",
  "linfa",
@@ -1387,7 +1388,7 @@ dependencies = [
 
 [[package]]
 name = "valentinus"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "bincode",
  "csv",
