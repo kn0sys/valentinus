@@ -47,6 +47,8 @@ wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
 ```
 
+`RUST_TEST_THREADS=1 cargo test`
+
 ### examples
 
 see [examples](https://github.com/kn0sys/valentinus/tree/main/examples)

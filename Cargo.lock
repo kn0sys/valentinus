@@ -544,9 +544,9 @@ dependencies = [
 
 [[package]]
 name = "kn0sys-nn"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b11a629f8719177d07faf3aff57cab6514474d9f37037f691c15be4d97350afa"
+checksum = "11467c77fc3b1b4615b6f45baded282aa7e9be92f67e34583de85b40c40f7663"
 dependencies = [
  "kdtree",
  "linfa",
@@ -1182,9 +1182,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.31.2"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4115055da5f572fff541dd0c4e61b0262977f453cc9fe04be83aba25a89bdab"
+checksum = "e3b5ae3f4f7d64646c46c4cae4e3f01d1c5d255c7406fdd7c7f999a94e488791"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -1388,7 +1388,7 @@ dependencies = [
 
 [[package]]
 name = "valentinus"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bincode",
  "csv",
