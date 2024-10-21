@@ -22,13 +22,13 @@ jobs:
     - name: Install dependencies
       run: |
         rustup toolchain install nightly
-        mkdir all-Mini-LM-L6-v2_onnx
-        cd all-Mini-LM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/special_tokens_map.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
+        mkdir all-MiniLM-L12-v2_onnx
+        cd all-MiniLM-L12-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/config.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/onnx/model.onnx
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/special_tokens_map.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/tokenizer_config.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/tokenizer.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/vocab.txt
     - name: database test
       run: |
         export LMDB_USER=$USER

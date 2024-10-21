@@ -576,7 +576,7 @@ mod tests {
         for i in 0..documents.len() {
             ids.push(format!("id{}", i));
         }
-        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+        let model_path = String::from("all-MiniLM-L12-v2_onnx");
         let model_type = ModelType::AllMiniLmL6V2;
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
@@ -654,7 +654,7 @@ mod tests {
         }
         let name = String::from("test_collection");
         let expected: Vec<String> = documents.clone();
-        let model_path = String::from("all-Mini-LM-L6-v2_onnx");
+        let model_path = String::from("all-MiniLM-L12-v2_onnx");
         let model_type = ModelType::AllMiniLmL6V2;
         let mut ec: EmbeddingCollection = EmbeddingCollection::new(
             documents.clone(),
