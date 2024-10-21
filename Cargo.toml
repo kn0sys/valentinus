@@ -1,6 +1,6 @@
 [package]
 name = "valentinus"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 documentation = "https://docs.rs/valentinus"
@@ -30,7 +30,7 @@ kn0sys-nn       = "0.8.2"
 kn0sys-lmdb-rs = "0.1.4"
 log            = "0.4"
 ndarray        = { version = "0.16.1", features = ["serde"] }
-ort            = "2.0.0-rc.6"
+ort            = "2.0.0-rc.8"
 regex          = "1.10.5"
 serde          = { version = "1.0", features = ["derive"] }
 serde_json     = "1.0.120"
