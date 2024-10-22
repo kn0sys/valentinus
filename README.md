@@ -34,17 +34,17 @@ git clone https://github.com/kn0sys/valentinus && cd valentinus
 
 # tests
 
-* Note: all tests currently require the `all-MiniLM-L12-v2_onnx` directory
+* Note: all tests currently require the `all-MiniLM-L6-v2_onnx` directory
 * Get the model.onnx and tokenizer.json from huggingface or [build them](https://huggingface.co/docs/optimum/en/exporters/onnx/usage_guides/export_a_model)
 
 ```bash
-mkdir all-MiniLM-L12-v2_onnx
-cd all-MiniLM-L12-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/config.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/onnx/model.onnx
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/special_tokens_map.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/tokenizer_config.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/tokenizer.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/vocab.txt
+mkdir all-MiniLM-L6-v2_onnx
+cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/config.json
+wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/model.onnx
+wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/special_tokens_map.json
+wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer_config.json
+wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer.json
+wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/vocab.txt
 ```
 
 `RUST_TEST_THREADS=1 cargo test`
