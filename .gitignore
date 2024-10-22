@@ -14,5 +14,4 @@ Cargo.lock
 *.pdb
 
 main.rs
-all-Mini-LM-L6-v2_onnx/**
-all-MiniLM-L12-v2_onnx/**
+*_onnx/**

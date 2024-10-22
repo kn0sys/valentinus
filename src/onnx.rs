@@ -66,10 +66,6 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         .iter()
         .flat_map(|e| e.get_ids().iter().map(|i| *i as i64))
         .collect();
-    let type_ids: Vec<i64> = encodings
-        .iter()
-        .flat_map(|e| e.get_type_ids().iter().map(|i| *i as i64))
-        .collect();
     let mask: Vec<i64> = encodings
         .iter()
         .flat_map(|e| e.get_attention_mask().iter().map(|i| *i as i64))
@@ -79,17 +75,14 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         .map_err(OnnxError::ShapeError)?;
     let a_mask = Array2::from_shape_vec([data.len(), padded_token_length], mask)
         .map_err(OnnxError::ShapeError)?;
-    let a_type_ids = Array2::from_shape_vec([data.len(), padded_token_length], type_ids)
-    .map_err(OnnxError::ShapeError)?;
     // Run the model.
     let outputs = session
-        .run(ort::inputs![a_ids, a_mask, a_type_ids].map_err(OnnxError::OrtError)?)
+        .run(ort::inputs![a_ids, a_mask].map_err(OnnxError::OrtError)?)
         .map_err(OnnxError::OrtError)?;
     // Extract our embeddings tensor and convert it to a strongly-typed 2-dimensional array.
-    let embeddings = outputs[0]
+    let embeddings = outputs[1]
         .try_extract_tensor::<f32>()
         .map_err(OnnxError::OrtError)?
-        .remove_axis(Axis(1)) // don't use padding axis
         .into_dimensionality::<Ix2>()
         .map_err(OnnxError::ShapeError)?;
     Ok(embeddings.into_owned())
