@@ -23,12 +23,12 @@ jobs:
       run: |
         rustup toolchain install nightly
         mkdir all-MiniLM-L12-v2_onnx
-        cd all-MiniLM-L12-v2_onnx && wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/tree/main/config.json
-        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/tree/main/onnx/model.onnx
-        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/tree/main/special_tokens_map.json
-        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/tree/main/tokenizer_config.json
-        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/tree/main/tokenizer.json
-        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/tree/main/vocab.txt
+        cd all-MiniLM-L12-v2_onnx && wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/config.json
+        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/onnx/model.onnx
+        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/special_tokens_map.json
+        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer_config.json
+        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer.json
+        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/vocab.txt
     - name: database test
       run: |
         export LMDB_USER=$USER
