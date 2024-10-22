@@ -24,7 +24,7 @@ jobs:
         rustup toolchain install nightly
         mkdir all-MiniLM-L12-v2_onnx
         cd all-MiniLM-L12-v2_onnx && wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/config.json
-        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/onnx/model.onnx
+        wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/model.onnx
         wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/special_tokens_map.json
         wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer_config.json
         wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer.json
