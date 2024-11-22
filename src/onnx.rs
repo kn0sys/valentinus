@@ -3,7 +3,7 @@
 //! ort is a Rust binding for ONNX Runtime. For information on how to get started with ort, see https://ort.pyke.io/introduction.
 
 use ndarray::*;
-use ort::{CUDAExecutionProvider, GraphOptimizationLevel, Session};
+use ort::{execution_providers::CUDAExecutionProvider, session::builder::GraphOptimizationLevel, session::Session};
 use tokenizers::Tokenizer;
 
 use log::*;

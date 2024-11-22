@@ -97,6 +97,7 @@ use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 use std::sync::LazyLock;
+use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{database::*, md2f::filter_where, onnx::*};
@@ -172,25 +173,34 @@ impl CosineQueryResult {
 }
 
 /// Error handling enum for valentinus
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ValentinusError {
     /// Bincode failure to serialize/desearilaize
+    #[error("deserialization error")]
     BincodeError,
     /// Cosine query failure
+    #[error("Cosine query failure")]
     CosineError,
     /// LMDB bindings error
+    #[error("LMDB error: {0}")]
     DatabaseError(MdbError),
     /// View name must contain alphanumerics, underscores and be unique
+    #[error("Invalid view name. View name must contain alphanumerics, underscores and be unique")]
     InvalidViewName,
     /// Failure to filter metadata
+    #[error("Metadata filter error")]
     Md2fsError,
     /// Failure in nearest query
+    #[error("Nearest neighbors query failure")]
     NearestError,
     /// Failure to generate embeddings in the onnx moduler
+    #[error("ONNX error")]
     OnnxError(OnnxError),
     /// Failure to save new collection to the database
+    #[error("Failed to save collection")]
     SaveError,
     /// Error in testing
+    #[error("Test failure")]
     TestError,
 }
 
