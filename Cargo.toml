@@ -1,6 +1,6 @@
 [package]
 name = "valentinus"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2021"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 documentation = "https://docs.rs/valentinus"
@@ -34,7 +34,7 @@ ort            = "2.0.0-rc.9"
 regex          = "1.10.5"
 serde          = { version = "1.0", features = ["derive"] }
 serde_json     = "1.0.120"
-sysinfo        = "0.32.0" 
+sysinfo        = "0.33.0" 
 thiserror      = "2.0.3"
 tokenizers     = { version = ">=0.13.4", default-features = false, features = [ "onig" ] }
 uuid           = { version = "1.10.0", features = [ "v4"] }

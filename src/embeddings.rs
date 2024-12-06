@@ -512,7 +512,7 @@ impl EmbeddingCollection {
 /// Look up a collection by key or view. If both key and view are passed,
 ///
 /// then key lookup will override the latter.
-fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollection, ValentinusError> {
+pub fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollection, ValentinusError> {
     if key.is_some() {
         let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let s_key = key.unwrap_or_default();
