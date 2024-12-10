@@ -41,9 +41,9 @@ fn main() -> Result<(), ValentinusError> {
     ec.save()?;
     // query the collection
     let query_string: String = String::from("Find me some delicious food!");
-    let result: String =
+    let result: usize =
         EmbeddingCollection::nearest_query(query_string, String::from(ec.get_view()))?;
-    assert_eq!(result, documents[3]);
+    assert_eq!(documents.clone()[result], documents[3]);
     // remove collection from db
     EmbeddingCollection::delete(String::from(ec.get_view()))?;
     Ok(())

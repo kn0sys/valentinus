@@ -135,6 +135,10 @@ impl KeyViewIndexer {
     fn new(v: &[String]) -> KeyViewIndexer {
         KeyViewIndexer { values: v.to_vec() }
     }
+    /// Accessor for values of the indexer
+    pub fn get_values(&self) -> &Vec<String> {
+        &self.values
+    }
 }
 
 /// Container for the `cosine_query` results
@@ -382,7 +386,7 @@ impl EmbeddingCollection {
     pub fn nearest_query(
         query_string: String,
         view_name: String,
-    ) -> Result<String, ValentinusError> {
+    ) -> Result<usize, ValentinusError> {
         info!("querying {} embedding collection for nearest", view_name);
         let collection: EmbeddingCollection = find(None, Some(view_name))?;
         let qv_string = vec![query_string];
@@ -409,8 +413,7 @@ impl EmbeddingCollection {
             log::error!("could not compute nearest");
             return Err(ValentinusError::NearestError);
         }
-        let l = location.unwrap_or_default();
-        Ok(String::from(&collection.documents[l]))
+        Ok(location.unwrap_or_default())
     }
     /// Delete a collection from the database
     pub fn delete(view_name: String) -> Result<(), ValentinusError> {
@@ -680,9 +683,9 @@ mod tests {
         ec.save()?;
         // query the collection
         let query_string: String = String::from("Find me some delicious food!");
-        let result: String =
+        let result: usize =
             EmbeddingCollection::nearest_query(query_string, String::from(ec.get_view()))?;
-        assert_eq!(result, documents[3]);
+        assert_eq!(documents.clone()[result], documents[3]);
         // remove collection from db
         EmbeddingCollection::delete(String::from(ec.get_view()))?;
         Ok(())

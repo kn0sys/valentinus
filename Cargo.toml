@@ -1,6 +1,6 @@
 [package]
 name = "valentinus"
-version = "0.5.5"
+version = "0.6.0"
 edition = "2021"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 documentation = "https://docs.rs/valentinus"
