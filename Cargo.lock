@@ -1587,7 +1587,7 @@ dependencies = [
 
 [[package]]
 name = "valentinus"
-version = "0.5.5"
+version = "0.6.0"
 dependencies = [
  "bincode",
  "csv",

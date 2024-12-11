@@ -416,13 +416,40 @@ impl EmbeddingCollection {
         Ok(location.unwrap_or_default())
     }
     /// Delete a collection from the database
-    pub fn delete(view_name: String) -> Result<(), ValentinusError> {
+    pub fn delete(view_name: String) -> Result<(), ValentinusError> { 
         info!("deleting {} embedding collection", view_name);
-        let collection: EmbeddingCollection = find(None, Some(view_name))?;
+        let collection: EmbeddingCollection = find(None, Some(String::from(&view_name)))?;
         let db: &DatabaseEnvironment = &DATABASE_LOCK;
-        let s_key = collection.key;
+        let s_key = String::from(&collection.key);
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
         DatabaseEnvironment::delete(&db.env, &db.handle, &b_key)
+            .map_err(ValentinusError::DatabaseError)?;
+        // update collections keys
+        let b_keys: Vec<u8> = Vec::from(VALENTINUS_KEYS.as_bytes());
+        let v_keys: Vec<u8> = Vec::from(VALENTINUS_VIEWS.as_bytes());
+        let db: &DatabaseEnvironment = &DATABASE_LOCK;
+        let all_keys = DatabaseEnvironment::read(&db.env, &db.handle, &b_keys)
+            .map_err(ValentinusError::DatabaseError)?;
+        let all_views = DatabaseEnvironment::read(&db.env, &db.handle, &v_keys)
+            .map_err(ValentinusError::DatabaseError)?;
+        let mut keys_indexer: KeyViewIndexer = bincode::deserialize(&all_keys[..]).unwrap_or_default();
+        let mut views_indexer: KeyViewIndexer = bincode::deserialize(&all_views[..]).unwrap_or_default();
+        let key_del_index = keys_indexer.values.iter().position(|x| *x == String::from(&collection.key)).unwrap();
+        keys_indexer.values.remove(key_del_index);
+        let views_del_index = views_indexer.values.iter().position(|x| *x == String::from(&view_name)).unwrap();
+        views_indexer.values.remove(views_del_index);
+        // reset the indexers
+        let b_keys_indexer: Vec<u8> =
+            bincode::serialize(&keys_indexer).map_err(|_| ValentinusError::BincodeError)?;
+        let b_views_indexer: Vec<u8> =
+            bincode::serialize(&views_indexer).map_err(|_| ValentinusError::BincodeError)?;
+        DatabaseEnvironment::delete(&db.env, &db.handle, &b_keys)
+            .map_err(ValentinusError::DatabaseError)?;
+        DatabaseEnvironment::delete(&db.env, &db.handle, &v_keys)
+            .map_err(ValentinusError::DatabaseError)?;
+        write_chunks(&db.env, &db.handle, &b_keys, &b_keys_indexer)
+            .map_err(ValentinusError::DatabaseError)?;
+        write_chunks(&db.env, &db.handle, &v_keys, &b_views_indexer)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
     }
