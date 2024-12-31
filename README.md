@@ -53,6 +53,20 @@ wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/v
 
 see [examples](https://github.com/kn0sys/valentinus/tree/main/examples)
 
+### donations
+
+[Monero](https://getmonero.org) donations accepted via open alias
+
+```bash
+donate.hiahatf.org
+``` 
+
+or subaddress 
+
+```bash
+859uSbW547HNhH4TzaThbdXCeoPas97y9EpqYCScRYDbciAGBuow2R6YW4DzARixD5J4v9zEPv2r3AWLrDNGkS6Z9X6yAoD
+```
+
 ### reference
 
 [inspired by this chromadb python tutorial](https://realpython.com/chromadb-vector-database/#what-is-a-vector-database)
