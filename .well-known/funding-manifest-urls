@@ -1,0 +1,69 @@
+{
+  "version": "v1.0.0",
+  "entity": {
+    "type": "individual",
+    "role": "owner",
+    "name": "Nigel Christian",
+    "email": "nigel.christian@hiahatf.org",
+    "description": "I'm a Researcher and Software Engineer at Hyahatiph Labs. Hyahatiph Labs LLC is a software development company based in New York City. Our team of experienced developers specializes in building custom web and mobile applications for businesses across various industries, including healthcare, finance, and retail. We use the latest technologies and tools to deliver high-quality solutions that meet our clients' unique requirements while ensuring reliability, scalability, and security.",
+    "webpageUrl": {
+      "url": "https://hiahatf.org"
+    }
+  },
+  "projects": [
+    {
+      "guid": "hl-valentinus",
+      "name": "Valentinus",
+      "description": "Next generation vector db built with lmdb bindings.",
+      "webpageUrl": {
+        "url": "https://github.com/kn0sys/valentinus"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/kn0sys/valentinus"
+      },
+      "licenses": [
+        "spdx:Apache-2.0 license"
+      ],
+      "tags": [
+        "ai",
+        "rust",
+        "lmdb",
+        "ml",
+        "embeddings",
+        "vector-database"
+      ]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "Monero",
+        "type": "other",
+        "address": "XMR: 859uSbW547HNhH4TzaThbdXCeoPas97y9EpqYCScRYDbciAGBuow2R6YW4DzARixD5J4v9zEPv2r3AWLrDNGkS6Z9X6yAoD",
+        "description": "https://www.getmonero.org/"
+      },
+      {
+        "guid": "CashApp",
+        "type": "payment-provider",
+        "address": "CashTag: $okanekurisu",
+        "description": "https://cash.app"
+      }
+    ],
+    "plans": [
+      {
+        "guid": "Maintenance",
+        "status": "active",
+        "name": "Monthly funding plan",
+        "description": "Maintenance, dependency updates and vulnerability patches.",
+        "amount": 3000,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": [
+          "Monero",
+          "CashApp"
+        ]
+      }
+    ],
+    "history": []
+  }
+}
