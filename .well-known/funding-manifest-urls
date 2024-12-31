@@ -61,8 +61,8 @@
         "currency": "USD",
         "frequency": "monthly",
         "channels": [
-          "Monero",
-          "CashApp"
+          "monero",
+          "cashapp"
         ]
       }
     ],
