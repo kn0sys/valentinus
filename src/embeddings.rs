@@ -382,7 +382,7 @@ impl EmbeddingCollection {
     }
     /// Calculate the nearest vector using KdTree with eclidean distance.
     ///
-    /// Returns `String` of the document matching the nearest embedding.
+    /// Returns `usize` index of the document matching the nearest embedding.
     pub fn nearest_query(
         query_string: String,
         view_name: String,
