@@ -4,6 +4,7 @@ on:
   push:
     paths-ignore:
       - 'examples/**'
+      - '.well-known/**'
       - 'README.md'
     branches: [ "main" ]
   pull_request:
