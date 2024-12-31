@@ -20,6 +20,7 @@
       },
       "repositoryUrl": {
         "url": "https://github.com/kn0sys/valentinus"
+	"wellKnown": "https://github.com/kn0sys/valentinus/blob/main/.well-known/funding-manifest-urls"
       },
       "licenses": [
         "spdx:Apache-2.0 license"
