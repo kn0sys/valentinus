@@ -39,13 +39,13 @@
   "funding": {
     "channels": [
       {
-        "guid": "Monero",
+        "guid": "monero",
         "type": "other",
         "address": "XMR: 859uSbW547HNhH4TzaThbdXCeoPas97y9EpqYCScRYDbciAGBuow2R6YW4DzARixD5J4v9zEPv2r3AWLrDNGkS6Z9X6yAoD",
         "description": "https://www.getmonero.org/"
       },
       {
-        "guid": "CashApp",
+        "guid": "cashapp",
         "type": "payment-provider",
         "address": "CashTag: $okanekurisu",
         "description": "https://cash.app"
@@ -53,7 +53,7 @@
     ],
     "plans": [
       {
-        "guid": "Maintenance",
+        "guid": "maintenance",
         "status": "active",
         "name": "Monthly funding plan",
         "description": "Maintenance, dependency updates and vulnerability patches.",
