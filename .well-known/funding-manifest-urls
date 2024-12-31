@@ -7,7 +7,8 @@
     "email": "nigel.christian@hiahatf.org",
     "description": "I'm a Researcher and Software Engineer at Hyahatiph Labs. Hyahatiph Labs LLC is a software development company based in New York City. Our team of experienced developers specializes in building custom web and mobile applications for businesses across various industries, including healthcare, finance, and retail. We use the latest technologies and tools to deliver high-quality solutions that meet our clients' unique requirements while ensuring reliability, scalability, and security.",
     "webpageUrl": {
-      "url": "https://hiahatf.org"
+      "url": "https://hiahatf.org",
+      "wellKnown": ""
     }
   },
   "projects": [
@@ -19,7 +20,7 @@
         "url": "https://github.com/kn0sys/valentinus"
       },
       "repositoryUrl": {
-        "url": "https://github.com/kn0sys/valentinus"
+        "url": "https://github.com/kn0sys/valentinus",
 	"wellKnown": "https://github.com/kn0sys/valentinus/blob/main/.well-known/funding-manifest-urls"
       },
       "licenses": [
