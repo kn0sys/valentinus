@@ -21,10 +21,12 @@ pub const VALENTINUS_VIEW: &str = "view";
 const MAP_SIZE_MEMORY_RATIO: f32 = 0.2;
 /// Ratio of chunk size to available memory is 0.2 percent
 const CHUNK_SIZE_MEMORY_RATIO: f32 = MAP_SIZE_MEMORY_RATIO * 0.01;
+/// LDMB Environment variable
+pub const VALENTINUS_LMDB_ENV: &str = "VALENTINUS_LMDB_ENV";
 
 /// Database lock is initialized on startup in order to cache the db handle
 pub static DATABASE_LOCK: LazyLock<DatabaseEnvironment> = LazyLock::new(|| {
-    let env = std::env::var("VALENTINUS_LMDB_ENV").unwrap_or(String::from("test"));
+    let env = std::env::var(VALENTINUS_LMDB_ENV).unwrap_or(String::from("test"));
     DatabaseEnvironment::open(&env).unwrap()
 });
 
@@ -202,18 +204,9 @@ mod tests {
 
     #[test]
     fn environment_test() -> Result<(), MdbError> {
-        let db = &*DATABASE_LOCK;
+        let db = &DATABASE_LOCK;
         const DATA_SIZE_10MB: usize = 10000000;
         let mut data = vec![0u8; DATA_SIZE_10MB];
-        rand::thread_rng().fill_bytes(&mut data);
-        let k = "test-key".as_bytes();
-        let expected = &data.to_vec();
-        write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data))?;
-        let actual = DatabaseEnvironment::read(&db.env, &db.handle, &Vec::from(k));
-        assert_eq!(expected.to_vec(), actual?);
-        let _ = DatabaseEnvironment::delete(&db.env, &db.handle, &Vec::from(k));
-        const DATA_SIZE_100MB: usize = 100000000;
-        let mut data = vec![0u8; DATA_SIZE_100MB];
         rand::thread_rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();

@@ -434,9 +434,9 @@ impl EmbeddingCollection {
             .map_err(ValentinusError::DatabaseError)?;
         let mut keys_indexer: KeyViewIndexer = bincode::deserialize(&all_keys[..]).unwrap_or_default();
         let mut views_indexer: KeyViewIndexer = bincode::deserialize(&all_views[..]).unwrap_or_default();
-        let key_del_index = keys_indexer.values.iter().position(|x| *x == String::from(&collection.key)).unwrap();
+        let key_del_index = keys_indexer.values.iter().position(|x| x == &collection.key).unwrap();
         keys_indexer.values.remove(key_del_index);
-        let views_del_index = views_indexer.values.iter().position(|x| *x == String::from(&view_name)).unwrap();
+        let views_del_index = views_indexer.values.iter().position(|x| x == &view_name).unwrap();
         views_indexer.values.remove(views_del_index);
         // reset the indexers
         let b_keys_indexer: Vec<u8> =
