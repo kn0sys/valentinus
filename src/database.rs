@@ -207,7 +207,7 @@ mod tests {
         let db = &DATABASE_LOCK;
         const DATA_SIZE_10MB: usize = 10000000;
         let mut data = vec![0u8; DATA_SIZE_10MB];
-        rand::thread_rng().fill_bytes(&mut data);
+        rand::rng().fill_bytes(&mut data);
         let k = "test-key".as_bytes();
         let expected = &data.to_vec();
         write_chunks(&db.env, &db.handle, &Vec::from(k), &Vec::from(data))?;
