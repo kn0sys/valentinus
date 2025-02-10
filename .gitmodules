@@ -1,0 +1,3 @@
+[submodule "ort"]
+	path = ort
+	url = https://github.com/kn0sys/ort

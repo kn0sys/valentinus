@@ -3,7 +3,12 @@
 //! ort is a Rust binding for ONNX Runtime. For information on how to get started with ort, see https://ort.pyke.io/introduction.
 
 use ndarray::*;
-use ort::{execution_providers::CUDAExecutionProvider, session::builder::GraphOptimizationLevel, session::Session};
+use ort::{
+    execution_providers::CUDAExecutionProvider,
+    session::builder::GraphOptimizationLevel,
+    session::Session,
+    value::TensorRef
+};
 use tokenizers::Tokenizer;
 
 use log::*;
@@ -43,7 +48,7 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         .commit()
         .map_err(OnnxError::OrtError)?;
     // Load our model
-    let session = Session::builder()
+    let mut session = Session::builder()
         .map_err(OnnxError::OrtError)?
         .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(OnnxError::OrtError)?
@@ -71,20 +76,24 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         .flat_map(|e| e.get_attention_mask().iter().map(|i| *i as i64))
         .collect();
     // Convert our flattened arrays into 2-dimensional tensors of shape [N, L].
-    let a_ids = Array2::from_shape_vec([data.len(), padded_token_length], ids)
-        .map_err(OnnxError::ShapeError)?;
-    let a_mask = Array2::from_shape_vec([data.len(), padded_token_length], mask)
-        .map_err(OnnxError::ShapeError)?;
+    let a_ids = TensorRef::from_array_view(([data.len(), padded_token_length], &*ids))
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?;
+    let a_mask = TensorRef::from_array_view(([data.len(), padded_token_length], &*mask))
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?;
+    //let a_ids = Array2::from_shape_vec([data.len(), padded_token_length], ids)
+    //    .map_err(OnnxError::ShapeError)?;
+    //let a_mask = Array2::from_shape_vec([data.len(), padded_token_length], mask)
+    //    .map_err(OnnxError::ShapeError)?;
     // Run the model.
     let outputs = session
-        .run(ort::inputs![a_ids, a_mask].map_err(OnnxError::OrtError)?)
+        .run(ort::inputs![a_ids, a_mask])
         .map_err(OnnxError::OrtError)?;
     // Extract our embeddings tensor and convert it to a strongly-typed 2-dimensional array.
     let embeddings = outputs[1]
         .try_extract_tensor::<f32>()
         .map_err(OnnxError::OrtError)?
         .into_dimensionality::<Ix2>()
-        .map_err(OnnxError::ShapeError)?;
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?;
     Ok(embeddings.into_owned())
 }
 
