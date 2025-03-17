@@ -39,12 +39,12 @@ git clone https://github.com/kn0sys/valentinus && cd valentinus
 
 ```bash
 mkdir all-MiniLM-L6-v2_onnx
-cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/config.json
-wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/model.onnx
-wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/special_tokens_map.json
-wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer_config.json
-wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/tokenizer.json
-wget https://huggingface.co/nigel-christian/all-MiniLM-L6-v2_onnx/resolve/main/vocab.txt
+cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/config.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/onnx/model.onnx
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/special_tokens_map.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/main/tokenizer_config.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/main/tokenizer.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/main/vocab.txt
 ```
 
 `RUST_TEST_THREADS=1 cargo test`

@@ -94,14 +94,14 @@ use kn0sys_nn::*;
 use kn0sys_lmdb_rs::MdbError;
 use ndarray::*;
 use regex::Regex;
-use serde::Deserialize;
-use serde::Serialize;
 use std::sync::LazyLock;
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{database::*, md2f::filter_where, onnx::*};
 use log::*;
+use bincode::{Encode, Decode, config};
+use serde::{Deserialize, Serialize};
 
 /// Views naming restriction. Required to be alphanumeric/unederscore
 static VIEWS_NAMING_CHECK: LazyLock<Regex> = LazyLock::new(|| {
@@ -113,7 +113,7 @@ static VIEWS_NAMING_CHECK: LazyLock<Regex> = LazyLock::new(|| {
 /// Be sure to set `VALENTINUS_CUSTOM_DIM` environment
 ///
 /// variable to the number of dimensions for that model.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, serde::Deserialize, Serialize)]
 pub enum ModelType {
     /// AllMiniLmL12V2 model
     AllMiniLmL12V2,
@@ -124,10 +124,25 @@ pub enum ModelType {
     Custom,
 }
 
+/// Bincode V2 ModelType enum
+#[derive(Decode, Encode)]
+pub enum ModelTypeWithSerde {
+    /// Bincode V1 ModelType enum
+    ModelTypeV2(#[bincode(with_serde)] ModelType)
+}
+
 /// Use to write the vector of keys and indexes
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct KeyViewIndexer {
     values: Vec<String>,
+}
+
+/// Bincode V2 KeyViewIndexer
+#[derive(Default, Decode, Encode)]
+pub struct KVIndexer {
+    /// Bincode V1 KeyViewIndexer
+    #[bincode(with_serde)]
+    pub serde: KeyViewIndexer,
 }
 
 impl KeyViewIndexer {
@@ -147,6 +162,14 @@ pub struct CosineQueryResult {
     documents: Vec<String>,
     similarities: Vec<f32>,
     metadata: Vec<Vec<String>>,
+}
+
+/// Bincode v2 CosineQueryResult
+#[derive(Decode, Encode)]
+struct CosResult {
+    /// Bincode V1 Cosine query result
+    #[bincode(with_serde)]
+    serde: CosineQueryResult,
 }
 
 impl CosineQueryResult {
@@ -235,6 +258,30 @@ pub struct EmbeddingCollection {
     view: String,
 }
 
+/// Bincode V2 EmbeddingsCollection
+#[derive(Decode, Encode)]
+pub struct PreCollection {
+    /// Bincode V1 EmbeddingsCollection
+    #[bincode(with_serde)]
+    pub serde: EmbeddingCollection,
+}
+
+impl PreCollection {
+    fn new(c: &EmbeddingCollection) -> PreCollection {
+        let serde = EmbeddingCollection {
+            documents: c.documents.clone(),
+            embeddings: c.embeddings.clone(),
+            metadata: c.metadata.clone(),
+            model_path: c.model_path.clone(),
+            model_type: c.model_type.clone(),
+            ids: c.ids.clone(),
+            key: c.key.clone(),
+            view: c.view.clone(),
+        };
+        PreCollection { serde }
+    }
+}
+
 impl EmbeddingCollection {
     /// Create a new collection of unstructured data. Must be saved with the `save` method
     pub fn new(
@@ -258,9 +305,9 @@ impl EmbeddingCollection {
         let views = DatabaseEnvironment::read(&db.env, &db.handle, &views_lookup)
             .map_err(ValentinusError::DatabaseError)?;
         if !views.is_empty() {
-            let view_indexer: KeyViewIndexer =
-                bincode::deserialize(&views[..]).map_err(|_| ValentinusError::BincodeError)?;
-            if view_indexer.values.contains(&name) {
+            let view_indexer: KVIndexer =
+                bincode::decode_from_slice(&views[..], config::standard()).map_err(|_| ValentinusError::BincodeError)?.0;
+            if view_indexer.serde.values.contains(&name) {
                 error!("view name must be unique");
                 return Err(ValentinusError::InvalidViewName);
             }
@@ -292,7 +339,8 @@ impl EmbeddingCollection {
         info!("initialized embeddings: {}", embeddings.len());
         embeddings = batch_embeddings(&self.model_path, &self.documents).unwrap_or_default();
         self.set_embeddings(embeddings);
-        let collection: Vec<u8> = bincode::serialize(&self).unwrap_or_default();
+        let pc = PreCollection::new(self);
+        let collection: Vec<u8> = bincode::encode_to_vec(&pc, config::standard()).unwrap_or_default();
         if collection.is_empty() {
             error!("failed to save collection: {}", &self.key);
             return Err(ValentinusError::SaveError);
@@ -319,8 +367,8 @@ impl EmbeddingCollection {
         let db: &DatabaseEnvironment = &DATABASE_LOCK;
         let keys = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
-        let indexer: KeyViewIndexer = bincode::deserialize(&keys[..]).unwrap_or_default();
-        Ok(indexer)
+        let indexer: KVIndexer = bincode::decode_from_slice(&keys[..], config::standard()).unwrap_or_default().0;
+        Ok(indexer.serde)
     }
     /// Send a cosine similarity query on a collection against a query string.
     ///
@@ -432,17 +480,17 @@ impl EmbeddingCollection {
             .map_err(ValentinusError::DatabaseError)?;
         let all_views = DatabaseEnvironment::read(&db.env, &db.handle, &v_keys)
             .map_err(ValentinusError::DatabaseError)?;
-        let mut keys_indexer: KeyViewIndexer = bincode::deserialize(&all_keys[..]).unwrap_or_default();
-        let mut views_indexer: KeyViewIndexer = bincode::deserialize(&all_views[..]).unwrap_or_default();
-        let key_del_index = keys_indexer.values.iter().position(|x| *x == String::from(&collection.key)).unwrap();
-        keys_indexer.values.remove(key_del_index);
-        let views_del_index = views_indexer.values.iter().position(|x| *x == String::from(&view_name)).unwrap();
-        views_indexer.values.remove(views_del_index);
+        let mut keys_indexer: KVIndexer = bincode::decode_from_slice(&all_keys[..], config::standard()).unwrap_or_default().0;
+        let mut views_indexer: KVIndexer = bincode::decode_from_slice(&all_views[..], config::standard()).unwrap_or_default().0;
+        let key_del_index = keys_indexer.serde.values.iter().position(|x| *x == String::from(&collection.key)).unwrap();
+        keys_indexer.serde.values.remove(key_del_index);
+        let views_del_index = views_indexer.serde.values.iter().position(|x| *x == String::from(&view_name)).unwrap();
+        views_indexer.serde.values.remove(views_del_index);
         // reset the indexers
         let b_keys_indexer: Vec<u8> =
-            bincode::serialize(&keys_indexer).map_err(|_| ValentinusError::BincodeError)?;
+            bincode::encode_to_vec(&keys_indexer, config::standard()).map_err(|_| ValentinusError::BincodeError)?;
         let b_views_indexer: Vec<u8> =
-            bincode::serialize(&views_indexer).map_err(|_| ValentinusError::BincodeError)?;
+            bincode::encode_to_vec(&views_indexer, config::standard()).map_err(|_| ValentinusError::BincodeError)?;
         DatabaseEnvironment::delete(&db.env, &db.handle, &b_keys)
             .map_err(ValentinusError::DatabaseError)?;
         DatabaseEnvironment::delete(&db.env, &db.handle, &v_keys)
@@ -484,18 +532,19 @@ impl EmbeddingCollection {
         // get the current indexes
         let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
-        let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
+        let kv_index: KVIndexer = bincode::decode_from_slice(&b_keys[..], config::standard()).unwrap_or_default().0;
         let mut current_keys: Vec<String> = Vec::new();
-        if !kv_index.values.is_empty() {
-            for i in kv_index.values {
+        if !kv_index.serde.values.is_empty() {
+            for i in kv_index.serde.values {
                 current_keys.push(i);
             }
         }
         // set the new index
         current_keys.push(String::from(&self.view));
         let v_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
+        let pre_v_indexer = KVIndexer { serde: v_indexer };
         let b_v_indexer: Vec<u8> =
-            bincode::serialize(&v_indexer).map_err(|_| ValentinusError::BincodeError)?;
+            bincode::encode_to_vec(&pre_v_indexer, config::standard()).map_err(|_| ValentinusError::BincodeError)?;
         DatabaseEnvironment::delete(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
         write_chunks(&db.env, &db.handle, &b_key, &b_v_indexer)
@@ -510,18 +559,19 @@ impl EmbeddingCollection {
         // get the current indexes
         let b_keys: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
-        let kv_index: KeyViewIndexer = bincode::deserialize(&b_keys[..]).unwrap_or_default();
+        let kv_index: KVIndexer = bincode::decode_from_slice(&b_keys[..], config::standard()).unwrap_or_default().0;
         let mut current_keys: Vec<String> = Vec::new();
-        if !kv_index.values.is_empty() {
-            for i in kv_index.values {
+        if !kv_index.serde.values.is_empty() {
+            for i in kv_index.serde.values {
                 current_keys.push(i);
             }
         }
         // set the new index
         current_keys.push(String::from(&self.key));
         let k_indexer: KeyViewIndexer = KeyViewIndexer::new(&current_keys);
+        let pre_k_indexer = KVIndexer { serde: k_indexer };
         let b_k_indexer: Vec<u8> =
-            bincode::serialize(&k_indexer).map_err(|_| ValentinusError::BincodeError)?;
+            bincode::encode_to_vec(&pre_k_indexer, config::standard()).map_err(|_| ValentinusError::BincodeError)?;
         write_chunks(&db.env, &db.handle, &b_key, &b_k_indexer)
             .map_err(ValentinusError::DatabaseError)?;
         Ok(())
@@ -549,9 +599,9 @@ pub fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollec
         let b_key: Vec<u8> = Vec::from(s_key.as_bytes());
         let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &b_key)
             .map_err(ValentinusError::DatabaseError)?;
-        let result: EmbeddingCollection =
-            bincode::deserialize(&collection[..]).map_err(|_| ValentinusError::BincodeError)?;
-        Ok(result)
+        let result: PreCollection =
+            bincode::decode_from_slice(&collection[..], config::standard()).map_err(|_| ValentinusError::BincodeError)?.0;
+        Ok(result.serde)
     } else {
         info!("performing key view lookup");
         let db: &DatabaseEnvironment = &DATABASE_LOCK;
@@ -562,9 +612,9 @@ pub fn find(key: Option<String>, view: Option<String>) -> Result<EmbeddingCollec
             .map_err(ValentinusError::DatabaseError)?;
         let collection: Vec<u8> = DatabaseEnvironment::read(&db.env, &db.handle, &key)
             .map_err(ValentinusError::DatabaseError)?;
-        let result: EmbeddingCollection =
-            bincode::deserialize(&collection[..]).map_err(|_| ValentinusError::BincodeError)?;
-        Ok(result)
+        let result: PreCollection =
+            bincode::decode_from_slice(&collection[..], config::standard()).map_err(|_| ValentinusError::BincodeError)?.0;
+        Ok(result.serde)
     }
 }
 
@@ -573,7 +623,6 @@ mod tests {
 
     use super::*;
 
-    use serde::Deserialize;
     use serde_json::Value;
     use std::{fs::File, path::Path};
 
@@ -709,7 +758,7 @@ mod tests {
         // save collection to db
         ec.save()?;
         // query the collection
-        let query_string: String = String::from("Find me some delicious food!");
+        let query_string: String = String::from("Find me some delicious pizza!");
         let result: usize =
             EmbeddingCollection::nearest_query(query_string, String::from(ec.get_view()))?;
         assert_eq!(documents.clone()[result], documents[3]);
