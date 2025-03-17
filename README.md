@@ -1,4 +1,4 @@
-[![.github/workflows/rust.yml](https://github.com/kn0sys/valentinus/actions/workflows/rust.yml/badge.svg)](https://github.com/kn0sys/valentinus/actions/workflows/rust.yml) [![test](https://github.com/kn0sys/valentinus/actions/workflows/test.yml/badge.svg)](https://github.com/kn0sys/valentinus/actions/workflows/test.yml) [![Crates.io Version](https://img.shields.io/crates/v/valentinus)](https://crates.io/crates/valentinus)
+[![build](https://github.com/kn0sys/valentinus/actions/workflows/rust.yml/badge.svg?branch=stable)](https://github.com/kn0sys/valentinus/actions/workflows/rust.yml) [![test](https://github.com/kn0sys/valentinus/actions/workflows/test.yml/badge.svg)](https://github.com/kn0sys/valentinus/actions/workflows/test.yml) [![Crates.io Version](https://img.shields.io/crates/v/valentinus)](https://crates.io/crates/valentinus)
  [![Crates.io Downloads (latest version)](https://img.shields.io/crates/dv/valentinus)](https://crates.io/crates/valentinus) [![docs.rs](https://img.shields.io/docsrs/valentinus)](https://docs.rs/valentinus) [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/kn0sys/valentinus)](https://github.com/kn0sys/valentinus/commits/main/) [![Matrix](https://img.shields.io/matrix/valentinus%3Amatrix.org)](https://app.element.io/#/room/#valentinus:matrix.org)
 
 
@@ -39,12 +39,12 @@ git clone https://github.com/kn0sys/valentinus && cd valentinus
 
 ```bash
 mkdir all-MiniLM-L6-v2_onnx
-cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/config.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/onnx/model.onnx
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/special_tokens_map.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/main/tokenizer_config.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/main/tokenizer.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/main/vocab.txt
+cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/config.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/onnx/model.onnx
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/special_tokens_map.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/main/tokenizer_config.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/main/tokenizer.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/main/vocab.txt
 ```
 
 `RUST_TEST_THREADS=1 cargo test`

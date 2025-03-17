@@ -23,12 +23,12 @@ jobs:
       run: |
         rustup toolchain install nightly
         mkdir all-MiniLM-L6-v2_onnx
-        cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/config.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/onnx/model.onnx
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/special_tokens_map.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/tokenizer_config.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/tokenizer.json
-        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/vocab.txt
+        cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/config.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/onnx/model.onnx
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/special_tokens_map.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/tokenizer_config.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/tokenizer.json
+        wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/vocab.txt
     - name: database test
       run: |
         export LMDB_USER=$USER
