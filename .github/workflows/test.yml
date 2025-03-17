@@ -5,9 +5,9 @@ on:
     paths-ignore:
       - 'examples/**'
       - 'README.md'
-    branches: [ "main" ]
+    branches: [ "main", "stable" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "stable" ]
 
 env:
   CARGO_TERM_COLOR: always
