@@ -29,17 +29,5 @@ jobs:
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/tokenizer_config.json
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/tokenizer.json
         wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/vocab.txt
-    - name: database test
-      run: |
-        export LMDB_USER=$USER
-        RUST_LOG=DEBUG cargo test database::tests::environment_test -- --exact
-    - name: etl test
-      run: |
-        export LMDB_USER=$USER
-        ONNX_PARALLEL_THREADS=2
-        cargo test embeddings::tests::cosine_etl_test -- --exact
-    - name: nearest test
-      run: |
-        export LMDB_USER=$USER
-        ONNX_PARALLEL_THREADS=2
-        cargo test embeddings::tests::nearest_test -- --exact
+    - name: test
+      run: RUST_TEST_THREADS=1 cargo_test
