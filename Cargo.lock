@@ -1633,7 +1633,7 @@ dependencies = [
 
 [[package]]
 name = "valentinus"
-version = "0.7.0-rc2"
+version = "0.7.0"
 dependencies = [
  "bincode",
  "csv",
