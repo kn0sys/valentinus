@@ -40,7 +40,7 @@ fn main() -> Result<(), ValentinusError> {
     // save collection to db
     ec.save()?;
     // query the collection
-    let query_string: String = String::from("Find me some delicious food!");
+    let query_string: String = String::from("Find me some delicious pizza!");
     let result: usize =
         EmbeddingCollection::nearest_query(query_string, String::from(ec.get_view()))?;
     assert_eq!(documents.clone()[result], documents[3]);
