@@ -1,7 +1,7 @@
 [package]
 name = "valentinus"
-version = "0.7.0"
-edition = "2021"
+version = "1.0.0"
+edition = "2024"
 authors = ["Nigel Christian <nigel.christian@hiahatf.org>"]
 documentation = "https://docs.rs/valentinus"
 description = "Next generation vector database built with LMDB bindings"
