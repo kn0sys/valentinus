@@ -43,7 +43,7 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         .commit()
         .map_err(OnnxError::OrtError)?;
     // Load our model
-    let session = Session::builder()
+    let mut session = Session::builder()
         .map_err(OnnxError::OrtError)?
         .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(OnnxError::OrtError)?
@@ -82,12 +82,17 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
     let a_t_ids = Array2::from_shape_vec([data.len(), padded_token_length], t_ids)
         .map_err(OnnxError::ShapeError)?;
     // Run the model.
+    let inputs = ort::inputs![
+        ort::value::Value::from_array(a_ids).map_err(OnnxError::OrtError)?,
+        ort::value::Value::from_array(a_mask).map_err(OnnxError::OrtError)?,
+        ort::value::Value::from_array(a_t_ids).map_err(OnnxError::OrtError)?,
+    ];
     let outputs = session
-        .run(ort::inputs![a_ids, a_mask, a_t_ids].map_err(OnnxError::OrtError)?)
+        .run(inputs)
         .map_err(OnnxError::OrtError)?;
     // Extract our embeddings tensor and convert it to a strongly-typed 2-dimensional array.
     let output_array = outputs[0]
-        .try_extract_tensor::<f32>()
+        .try_extract_array::<f32>()
         .map_err(OnnxError::OrtError)?
         .into_dimensionality::<Ix3>()
         .map_err(OnnxError::ShapeError)?;
@@ -106,26 +111,23 @@ pub fn batch_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f
     let mut data_array: ndarray::ArrayBase<OwnedRepr<f32>, ndarray::Dim<[usize; 2]>> =
         ndarray::Array::zeros((data.len(), dimensions));
     let mut begin: usize = 0;
-    let mut multiplier: usize = 1;
     let length = data.len();
-    while length - begin > BATCH_SIZE {
-        info!("{} encodings remaining", length - begin);
-        let end = (BATCH_SIZE * multiplier) - 1;
-        let embeddings = generate_embeddings(model_path, &data[begin..end])?;
-        for index1 in begin..end {
-            for index2 in 0..dimensions {
-                data_array[[index1, index2]] = embeddings[[index1 - begin, index2]];
+
+    while begin < length {
+        let end = (begin + BATCH_SIZE).min(length);
+        info!("processing items {} to {}", begin, end);
+        if begin == end { break; } // Should not happen with current logic, but good practice.
+        
+        let data_slice = &data[begin..end];
+        let embeddings = generate_embeddings(model_path, data_slice)?;
+
+        // Adjust the loop to correctly map embeddings back to the main array.
+        for (i, embedding_row) in embeddings.outer_iter().enumerate() {
+            if begin + i < data_array.shape()[0] {
+                data_array.row_mut(begin + i).assign(&embedding_row);
             }
         }
-        begin += BATCH_SIZE;
-        multiplier += 1;
-    }
-    info!("{} encodings remaining", length - begin);
-    let embeddings = generate_embeddings(model_path, &data[begin..length])?;
-    for index1 in 0..length - begin {
-        for index2 in 0..dimensions {
-            data_array[[(index1 + begin), index2]] = embeddings[[index1, index2]];
-        }
+        begin = end;
     }
     Ok(data_array)
 }
