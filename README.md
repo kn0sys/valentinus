@@ -5,7 +5,7 @@
 
 # valentinus 
 
-next generation vector db built with lmdb bindings
+A thread-safe vector database for model inference inside LMDB.
 
 ### dependencies
 
