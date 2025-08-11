@@ -517,8 +517,8 @@ impl Valentinus {
             .map_err(|_| ValentinusError::CollectionNotFound("Invalid key format".to_string()))
     }
 
-    fn get_indexer_mut<'a>(
-        txn: &'a lmdb::Transaction,
+    fn get_indexer_mut(
+        txn: &lmdb::Transaction,
         db_handle: &lmdb::DbHandle,
         indexer_name: &str,
     ) -> Result<KVIndexer, ValentinusError> {
@@ -531,8 +531,8 @@ impl Valentinus {
         }
     }
 
-    fn write_indexer<'a>(
-        txn: &'a lmdb::Transaction,
+    fn write_indexer(
+        txn: &lmdb::Transaction,
         db_handle: &lmdb::DbHandle,
         indexer_name: &str,
         indexer: &KVIndexer,
