@@ -41,9 +41,9 @@ mkdir all-MiniLM-L6-v2_onnx
 cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/special_tokens_map.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/main/tokenizer_config.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/main/tokenizer.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/main/vocab.txt
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
 ```
 
 `cargo test`
