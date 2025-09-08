@@ -47,7 +47,7 @@ enum MetadataFilterResult {
 
 /// Metadata filter
 #[derive(Debug)]
-struct MetadataFilter<T> {
+pub struct MetadataFilter<T> {
     /// Key to filter on
     key: String,
     /// Valid json type to filter on
@@ -56,8 +56,31 @@ struct MetadataFilter<T> {
     filter: FilterOperations,
 }
 
-impl<T> MetadataFilter<T> {
-    /// Create a filter from a raw JSON string.
+impl<T: Default> Default for MetadataFilter<T> {
+    fn default() -> Self {
+        MetadataFilter {
+            key: Default::default(),
+            value: Default::default(),
+            filter: FilterOperations::Noop,
+        }
+    }
+}
+
+
+pub trait Filter<T> {
+    fn create_filter(raw: &str) -> Result<MetadataFilterResult, Md2fsError>;
+    fn eq(self, m: MetadataFilter<T>) -> bool;
+    fn gt(self, m: MetadataFilter<T>) -> bool;
+    fn gte(self, m: MetadataFilter<T>) -> bool;
+    fn lt(self, m: MetadataFilter<T>) -> bool;
+    fn lte(self, m: MetadataFilter<T>) -> bool;
+}
+
+impl<T> Filter<T> for MetadataFilter<T>
+where
+    T: PartialEq + PartialOrd + Default,
+{
+    /// Create a filter on a valid string value
     fn create_filter(raw: &str) -> Result<MetadataFilterResult, Md2fsError> {
         let v: Result<Value, serde_json::Error> = serde_json::from_str(raw);
         if v.is_err() {
@@ -139,6 +162,21 @@ impl<T> MetadataFilter<T> {
         }
         Err(Md2fsError::ParseError)
     }
+    fn eq(self, m: MetadataFilter<T>) -> bool {
+        self.key == m.key && self.value == m.value
+    }
+    fn gt(self, m: MetadataFilter<T>) -> bool {
+        self.key == m.key && m.value > self.value
+    }
+    fn gte(self, m: MetadataFilter<T>) -> bool {
+        self.key == m.key && m.value >= self.value
+    }
+    fn lt(self, m: MetadataFilter<T>) -> bool {
+        self.key == m.key && m.value < self.value
+    }
+    fn lte(self, m: MetadataFilter<T>) -> bool {
+        self.key == m.key && m.value <= self.value
+    }
 }
 
 fn process_filter(raw_f: &str, raw_m: &str) -> Result<bool, Md2fsError> {
@@ -192,6 +230,11 @@ fn process_filter(raw_f: &str, raw_m: &str) -> Result<bool, Md2fsError> {
     }
 }
 
+/// Proces two raw json strings. Let `raw_f` be a valid metadata filter
+///
+/// and `raw_m` be valid metadata that is not a nested object. Returns true
+///
+/// on a valid match. The equivalent of an SQL `where` clause.
 /// Proces two raw json strings. Let `raw_f` be a valid metadata filter
 ///
 /// and `raw_m` be valid metadata that is not a nested object. Returns true
