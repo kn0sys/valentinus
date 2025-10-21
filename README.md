@@ -16,6 +16,10 @@ A thread-safe vector database for model inference inside LMDB.
 
 ### getting started
 
+NOTE: ensure you have the development packages below (e.g. for Fedora)
+* `sudo dnf install openssl-devel`
+* `sudo dnf install gcc-c++`
+
 ```bash
 git clone https://github.com/kn0sys/valentinus && cd valentinus
 ```
@@ -37,13 +41,14 @@ git clone https://github.com/kn0sys/valentinus && cd valentinus
 * Get the model.onnx and tokenizer.json from huggingface or [build them](https://huggingface.co/docs/optimum/en/exporters/onnx/usage_guides/export_a_model)
 
 ```bash
-mkdir all-MiniLM-L6-v2_onnx
-cd all-MiniLM-L6-v2_onnx && wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/special_tokens_map.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
+mkdir all-MiniLM-L6-v2_onnx \
+&& cd all-MiniLM-L6-v2_onnx \
+&& wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json \
+&& wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx \
+&& wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/special_tokens_map.json \
+&& wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json \
+&& wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json \
+&& wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
 ```
 
 `cargo test`
