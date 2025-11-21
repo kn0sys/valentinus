@@ -23,4 +23,4 @@ jobs:
       run: |
         rustup toolchain install nightly
     - name: build and clippy
-      run: RUSTFLAGS="-Z threads=4" cargo +nightly build --future-incompat-report & cargo clippy
+      run: RUSTFLAGS="-Z threads=4" cargo +nightly build --future-incompat-report && cargo clippy
