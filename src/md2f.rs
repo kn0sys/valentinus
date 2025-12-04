@@ -40,9 +40,9 @@ impl FilterOperations {
 
 #[derive(Debug)]
 enum MetadataFilterResult {
-    U64Filter(MetadataFilter<u64>),
-    StringFilter(MetadataFilter<String>),
-    StringVecFilter(MetadataFilter<Vec<String>>),
+    U64(MetadataFilter<u64>),
+    String(MetadataFilter<String>),
+    StringVec(MetadataFilter<Vec<String>>),
 }
 
 /// Metadata filter
@@ -83,14 +83,14 @@ impl<T> MetadataFilter<T> {
             let p_value = &u_v[&key];
             if p_value.is_string() {
                 let value: String = p_value.as_str().unwrap_or_default().to_string();
-                return Ok(MetadataFilterResult::StringFilter(MetadataFilter {
+                return Ok(MetadataFilterResult::String(MetadataFilter {
                     key,
                     filter: FilterOperations::Noop,
                     value,
                 }));
             } else {
                 let value: u64 = p_value.as_u64().unwrap_or_default();
-                return Ok(MetadataFilterResult::U64Filter(MetadataFilter {
+                return Ok(MetadataFilterResult::U64(MetadataFilter {
                     key,
                     filter: FilterOperations::Noop,
                     value,
@@ -107,23 +107,22 @@ impl<T> MetadataFilter<T> {
         };
         let filter: FilterOperations = FilterOperations::get_enum(&op);
 
-        if filter == FilterOperations::In {
-            if let Some(arr) = value.as_array() {
+        if filter == FilterOperations::In
+            && let Some(arr) = value.as_array() {
                 let str_vec: Vec<String> = arr
                     .iter()
                     .filter_map(|v| v.as_str().map(String::from))
                     .collect();
-                return Ok(MetadataFilterResult::StringVecFilter(MetadataFilter {
+                return Ok(MetadataFilterResult::StringVec(MetadataFilter {
                     key,
                     filter,
                     value: str_vec,
                 }));
             }
-        }
 
         if value.is_string() {
             let value = value.as_str().unwrap_or_default().to_string();
-            return Ok(MetadataFilterResult::StringFilter(MetadataFilter {
+            return Ok(MetadataFilterResult::String(MetadataFilter {
                 key,
                 filter,
                 value,
@@ -131,7 +130,7 @@ impl<T> MetadataFilter<T> {
         }
         if value.is_number() {
             let value = value.as_u64().unwrap_or_default();
-            return Ok(MetadataFilterResult::U64Filter(MetadataFilter {
+            return Ok(MetadataFilterResult::U64(MetadataFilter {
                 key,
                 filter,
                 value,
@@ -154,29 +153,25 @@ fn process_filter(raw_f: &str, raw_m: &str) -> Result<bool, Md2fsError> {
 
     // 3. Match on the filter type and perform the check.
     match filter_result {
-        MetadataFilterResult::StringVecFilter(f_vec) => {
-            if let Some(meta_val) = meta_obj.get(&f_vec.key) {
-                if let Some(m_str) = meta_val.as_str() {
-                    if f_vec.filter == FilterOperations::In {
+        MetadataFilterResult::StringVec(f_vec) => {
+            if let Some(meta_val) = meta_obj.get(&f_vec.key)
+                && let Some(m_str) = meta_val.as_str()
+                    && f_vec.filter == FilterOperations::In {
                         return Ok(f_vec.value.contains(&m_str.to_string()));
                     }
-                }
-            }
             Ok(false)
         }
-        MetadataFilterResult::StringFilter(f_str) => {
-            if let Some(meta_val) = meta_obj.get(&f_str.key) {
-                if let Some(m_str) = meta_val.as_str() {
-                    if f_str.filter == FilterOperations::EqualTo || f_str.filter == FilterOperations::Noop {
+        MetadataFilterResult::String(f_str) => {
+            if let Some(meta_val) = meta_obj.get(&f_str.key)
+                && let Some(m_str) = meta_val.as_str()
+                    && (f_str.filter == FilterOperations::EqualTo || f_str.filter == FilterOperations::Noop) {
                         return Ok(f_str.value == m_str);
                     }
-                }
-            }
             Ok(false)
         }
-        MetadataFilterResult::U64Filter(f_u64) => {
-            if let Some(meta_val) = meta_obj.get(&f_u64.key) {
-                if let Some(m_u64) = meta_val.as_u64() {
+        MetadataFilterResult::U64(f_u64) => {
+            if let Some(meta_val) = meta_obj.get(&f_u64.key)
+                && let Some(m_u64) = meta_val.as_u64() {
                     return Ok(match f_u64.filter {
                         FilterOperations::EqualTo | FilterOperations::Noop => m_u64 == f_u64.value,
                         FilterOperations::GreaterThan => m_u64 > f_u64.value,
@@ -186,7 +181,6 @@ fn process_filter(raw_f: &str, raw_m: &str) -> Result<bool, Md2fsError> {
                         _ => false,
                     });
                 }
-            }
             Ok(false)
         }
     }
