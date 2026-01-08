@@ -3,7 +3,10 @@
 //! ort is a Rust binding for ONNX Runtime. For information on how to get started with ort, see https://ort.pyke.io/introduction.
 
 use ndarray::*;
-use ort::{execution_providers::CUDAExecutionProvider, session::builder::GraphOptimizationLevel, session::Session};
+use ort::{
+    execution_providers::CUDAExecutionProvider, session::Session,
+    session::builder::GraphOptimizationLevel,
+};
 use tokenizers::Tokenizer;
 
 use log::*;
@@ -40,8 +43,8 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
     ort::init()
         .with_name("valentinus")
         .with_execution_providers([CUDAExecutionProvider::default().build()])
-        .commit()
-        .map_err(OnnxError::OrtError)?;
+        .commit();
+
     // Load our model
     let mut session = Session::builder()
         .map_err(OnnxError::OrtError)?
@@ -87,9 +90,7 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         ort::value::Value::from_array(a_mask).map_err(OnnxError::OrtError)?,
         ort::value::Value::from_array(a_t_ids).map_err(OnnxError::OrtError)?,
     ];
-    let outputs = session
-        .run(inputs)
-        .map_err(OnnxError::OrtError)?;
+    let outputs = session.run(inputs).map_err(OnnxError::OrtError)?;
     // Extract our embeddings tensor and convert it to a strongly-typed 2-dimensional array.
     let output_array = outputs[0]
         .try_extract_array::<f32>()
@@ -116,8 +117,10 @@ pub fn batch_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f
     while begin < length {
         let end = (begin + BATCH_SIZE).min(length);
         info!("processing items {} to {}", begin, end);
-        if begin == end { break; } // Should not happen with current logic, but good practice.
-        
+        if begin == end {
+            break;
+        } // Should not happen with current logic, but good practice.
+
         let data_slice = &data[begin..end];
         let embeddings = generate_embeddings(model_path, data_slice)?;
 
