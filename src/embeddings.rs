@@ -82,7 +82,6 @@
 //! ```
 
 use crate::{database::*, md2f::filter_where, onnx::*};
-use bincode::{config, Decode, Encode};
 use kn0sys_lmdb_rs as lmdb;
 use kn0sys_lmdb_rs::MdbError;
 use kn0sys_nn::distance::L2Dist;
@@ -95,6 +94,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, RwLock};
 use thiserror::Error;
 use uuid::Uuid;
+use wincode::{SchemaRead, SchemaWrite};
 
 // --- Public Structs and Enums ---
 
@@ -114,12 +114,13 @@ pub struct Valentinus {
 /// This struct holds all the data related to a collection, including documents,
 /// metadata, and the vector embeddings themselves. It is designed to be immutable
 /// once created and cached in memory.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, SchemaWrite, SchemaRead)]
 pub struct EmbeddingCollection {
     /// The original text documents.
     documents: Vec<String>,
     /// The vector embeddings generated from the documents.
-    embeddings: Array2<f32>,
+    data: Vec<f32>,
+    shape: (usize, usize),
     /// Metadata associated with each document, matched by index.
     metadata: Vec<Vec<String>>,
     /// Path to the ONNX model files used for this collection.
@@ -135,7 +136,7 @@ pub struct EmbeddingCollection {
 }
 
 /// Identifier for the model used with the collection.
-#[derive(Clone, Debug, Default, serde::Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, SchemaWrite, SchemaRead)]
 pub enum ModelType {
     /// AllMiniLmL12V2 model.
     AllMiniLmL12V2,
@@ -160,7 +161,7 @@ pub struct CosineQueryResult {
 pub enum ValentinusError {
     /// Bincode serialization/deserialization failure.
     #[error("Serialization/deserialization error: {0}")]
-    BincodeError(String),
+    WincodeError(String),
     /// A collection with the given name was not found.
     #[error("Collection '{0}' not found")]
     CollectionNotFound(String),
@@ -192,20 +193,18 @@ pub enum ValentinusError {
 
 // --- Internal Serialization Structs (for backward compatibility) ---
 
-#[derive(Decode, Encode)]
+#[derive(SchemaWrite, SchemaRead)]
 struct PreCollection {
-    #[bincode(with_serde)]
     serde: EmbeddingCollection,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, SchemaWrite, SchemaRead)]
 struct KeyViewIndexer {
     values: Vec<String>,
 }
 
-#[derive(Default, Decode, Encode)]
+#[derive(Default, SchemaWrite, SchemaRead)]
 struct KVIndexer {
-    #[bincode(with_serde)]
     serde: KeyViewIndexer,
 }
 
@@ -257,15 +256,17 @@ impl Valentinus {
 
         // --- 2. Generate Embeddings ---
         info!("Generating embeddings for new collection '{}'", name);
-        let embeddings = batch_embeddings(&model_path, &documents)
-            .map_err(ValentinusError::OnnxError)?;
-
+        let array_embeddings: Array2<f32> =
+            batch_embeddings(&model_path, &documents).map_err(ValentinusError::OnnxError)?;
+        let shape = (array_embeddings.nrows(), array_embeddings.ncols());
+        let data = array_embeddings.into_raw_vec_and_offset().0;
         // --- 3. Prepare Collection Struct ---
         let key = format!("{}-{}", VALENTINUS_KEY, Uuid::new_v4());
         let view = format!("{}-{}", VALENTINUS_VIEW, name);
         let collection = EmbeddingCollection {
             documents,
-            embeddings,
+            data,
+            shape,
             metadata,
             model_path,
             model_type,
@@ -306,8 +307,8 @@ impl Valentinus {
             let pre_collection = PreCollection {
                 serde: collection.clone(),
             };
-            let encoded_collection = bincode::encode_to_vec(&pre_collection, config::standard())
-                .map_err(|e| ValentinusError::BincodeError(e.to_string()))?;
+            let encoded_collection = wincode::serialize(&pre_collection)
+                .map_err(|e| ValentinusError::WincodeError(e.to_string()))?;
 
             write_chunks_in_txn(
                 &txn,
@@ -322,7 +323,10 @@ impl Valentinus {
     }
 
     /// Retrieves a collection, loading it from the database and caching it if necessary.
-    pub fn get_collection(&self, view_name: &str) -> Result<Arc<EmbeddingCollection>, ValentinusError> {
+    pub fn get_collection(
+        &self,
+        view_name: &str,
+    ) -> Result<Arc<EmbeddingCollection>, ValentinusError> {
         // --- 1. Check cache with a read lock ---
         {
             let cache = self.collections.read().unwrap();
@@ -342,14 +346,16 @@ impl Valentinus {
         }
 
         // --- 3. Load from DB ---
-        info!("Cache miss. Loading collection '{}' from database.", view_name);
+        info!(
+            "Cache miss. Loading collection '{}' from database.",
+            view_name
+        );
         let key = self.get_key_for_view(view_name)?;
         let collection_data = read(&self.db.env, &self.db.handle, &key.as_bytes().to_vec())?
             .ok_or_else(|| ValentinusError::CollectionNotFound(view_name.to_string()))?;
 
-        let (pre_collection, _): (PreCollection, usize) =
-            bincode::decode_from_slice(&collection_data, config::standard())
-                .map_err(|e| ValentinusError::BincodeError(e.to_string()))?;
+        let pre_collection: PreCollection = wincode::deserialize(&collection_data)
+            .map_err(|e| ValentinusError::WincodeError(e.to_string()))?;
 
         let collection = Arc::new(pre_collection.serde);
         cache.insert(key, Arc::clone(&collection));
@@ -421,9 +427,11 @@ impl Valentinus {
 
         let mut results: Vec<(f32, String, Vec<String>)> = Vec::new();
 
+        // Consume the flattened data back to Array2
+        let collection_embeddings =
+            Array2::from_shape_vec(collection.shape, collection.data.clone()).unwrap();
         // --- Iterate safely using enumerate to get a reliable index ---
-        for (index, (cv, sentence)) in collection
-            .embeddings
+        for (index, (cv, sentence)) in collection_embeddings
             .axis_iter(Axis(0))
             .zip(collection.documents.iter())
             .enumerate()
@@ -431,8 +439,14 @@ impl Valentinus {
             let metadata = &collection.metadata[index];
             let raw_f = f_where.as_deref().unwrap_or(&[]);
 
-            if !is_filtering || filter_where(raw_f, metadata).map_err(|_| ValentinusError::Md2fsError)? {
-                let dot_product: f32 = query_embedding.iter().zip(cv.iter()).map(|(a, b)| a * b).sum();
+            if !is_filtering
+                || filter_where(raw_f, metadata).map_err(|_| ValentinusError::Md2fsError)?
+            {
+                let dot_product: f32 = query_embedding
+                    .iter()
+                    .zip(cv.iter())
+                    .map(|(a, b)| a * b)
+                    .sum();
                 results.push((dot_product, sentence.clone(), metadata.clone()));
             }
         }
@@ -476,9 +490,10 @@ impl Valentinus {
         let qv = batch_embeddings(&collection.model_path, &qv_string)
             .map_err(ValentinusError::OnnxError)?;
         let query_embedding = qv.index_axis(Axis(0), 0);
-
+        let collection_embeddings =
+            Array2::from_shape_vec(collection.shape, collection.data.clone()).unwrap();
         let nn = CommonNearestNeighbour::KdTree
-            .batch(&collection.embeddings, L2Dist)
+            .batch(&collection_embeddings, L2Dist)
             .map_err(|e| ValentinusError::NearestError(e.to_string()))?;
 
         let nearest = nn
@@ -486,12 +501,13 @@ impl Valentinus {
             .map_err(|e| ValentinusError::NearestError(e.to_string()))?;
 
         if nearest.is_empty() {
-            return Err(ValentinusError::NotFound("No nearest neighbor found.".to_string()));
+            return Err(ValentinusError::NotFound(
+                "No nearest neighbor found.".to_string(),
+            ));
         }
 
         let nearest_embedding = nearest[0].0.to_vec();
-        let position = collection
-            .embeddings
+        let position = collection_embeddings
             .axis_iter(Axis(0))
             .position(|x| x.to_vec() == nearest_embedding);
 
@@ -523,9 +539,8 @@ impl Valentinus {
         indexer_name: &str,
     ) -> Result<KVIndexer, ValentinusError> {
         match txn.bind(db_handle).get::<Vec<u8>>(&indexer_name.as_bytes()) {
-            Ok(bytes) => Ok(bincode::decode_from_slice(&bytes, config::standard())
-                .map_err(|e| ValentinusError::BincodeError(e.to_string()))?
-                .0),
+            Ok(bytes) => Ok(wincode::deserialize(&bytes)
+                .map_err(|e| ValentinusError::WincodeError(e.to_string()))?),
             Err(MdbError::NotFound) => Ok(KVIndexer::default()), // Return empty if not found
             Err(e) => Err(ValentinusError::DatabaseError(e)),
         }
@@ -537,8 +552,8 @@ impl Valentinus {
         indexer_name: &str,
         indexer: &KVIndexer,
     ) -> Result<(), ValentinusError> {
-        let encoded = bincode::encode_to_vec(indexer, config::standard())
-            .map_err(|e| ValentinusError::BincodeError(e.to_string()))?;
+        let encoded = wincode::serialize(indexer)
+            .map_err(|e| ValentinusError::WincodeError(e.to_string()))?;
         txn.bind(db_handle)
             .set(&indexer_name.as_bytes(), &encoded)?;
         Ok(())
@@ -571,7 +586,7 @@ mod tests {
     use std::{fs, fs::File, path::Path};
 
     /// Test data structure for CSV parsing.
-    #[derive(Default, Deserialize)]
+    #[derive(Default, Deserialize, SchemaWrite, SchemaRead)]
     struct Review {
         review: Option<String>,
         rating: Option<String>,
@@ -591,6 +606,7 @@ mod tests {
 
     #[test]
     fn test_full_etl_and_query_workflow() -> Result<(), ValentinusError> {
+        env_logger::init();
         let valentinus = setup_test_env("full_workflow_test");
         let collection_name = "tesla_reviews".to_string();
 
@@ -609,7 +625,7 @@ mod tests {
         // --- 2. Verify creation by getting the collection ---
         let collection = valentinus.get_collection(&collection_name)?;
         assert_eq!(collection.documents, expected_docs);
-        assert!(!collection.embeddings.is_empty());
+        assert!(!collection.data.is_empty());
 
         // --- 3. Test Cosine Query with Filters ---
         let query_string = "Find the best reviews.".to_string();
@@ -676,7 +692,11 @@ mod tests {
         for result in rdr.deserialize() {
             let record: Review = result.unwrap_or_default();
             documents.push(record.review.unwrap_or_default());
-            let rating = record.rating.unwrap_or_default().parse::<u64>().unwrap_or(0);
+            let rating = record
+                .rating
+                .unwrap_or_default()
+                .parse::<u64>()
+                .unwrap_or(0);
             let year_str = record.vehicle_title.unwrap_or_default();
             let year = if year_str.len() >= 4 {
                 year_str[0..4].to_string()
