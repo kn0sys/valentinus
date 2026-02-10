@@ -25,7 +25,6 @@ crate-type = ["lib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# bincode        = { version = "2.0.1", features = ["serde"]}
 wincode        = { version = ">=0.4.0", features = ["derive"] }
 kn0sys-nn      = "0.9.2"
 kn0sys-lmdb-rs = "0.1.6"

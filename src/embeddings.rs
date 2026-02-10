@@ -159,7 +159,10 @@ pub struct CosineQueryResult {
 /// Error handling enum for all operations.
 #[derive(Debug, Error)]
 pub enum ValentinusError {
-    /// Bincode serialization/deserialization failure.
+    /// Cache read error
+    #[error("Cache error: {0}")]
+    CacheError(String),
+    /// Wincode serialization/deserialization failure.
     #[error("Serialization/deserialization error: {0}")]
     WincodeError(String),
     /// A collection with the given name was not found.
@@ -329,7 +332,10 @@ impl Valentinus {
     ) -> Result<Arc<EmbeddingCollection>, ValentinusError> {
         // --- 1. Check cache with a read lock ---
         {
-            let cache = self.collections.read().unwrap();
+            let cache = self
+                .collections
+                .read()
+                .map_err(|e| ValentinusError::CacheError(e.to_string()))?;
             if let Some(collection) = cache.values().find(|c| c.view.ends_with(view_name)) {
                 info!("Cache hit for collection '{}'", view_name);
                 return Ok(Arc::clone(collection));
@@ -429,7 +435,7 @@ impl Valentinus {
 
         // Consume the flattened data back to Array2
         let collection_embeddings =
-            Array2::from_shape_vec(collection.shape, collection.data.clone()).unwrap();
+            Array2::from_shape_vec(collection.shape, collection.data.clone()).unwrap_or_default();
         // --- Iterate safely using enumerate to get a reliable index ---
         for (index, (cv, sentence)) in collection_embeddings
             .axis_iter(Axis(0))
@@ -491,7 +497,7 @@ impl Valentinus {
             .map_err(ValentinusError::OnnxError)?;
         let query_embedding = qv.index_axis(Axis(0), 0);
         let collection_embeddings =
-            Array2::from_shape_vec(collection.shape, collection.data.clone()).unwrap();
+            Array2::from_shape_vec(collection.shape, collection.data.clone()).unwrap_or_default();
         let nn = CommonNearestNeighbour::KdTree
             .batch(&collection_embeddings, L2Dist)
             .map_err(|e| ValentinusError::NearestError(e.to_string()))?;
