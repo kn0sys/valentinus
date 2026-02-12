@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "valentinus"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "csv",
  "env_logger",
