@@ -9,7 +9,7 @@ A thread-safe vector database for model inference inside LMDB.
 
 ### dependencies
 
-* bincode/serde  - serialize/deserialize
+* wincode/serde  - serialize/deserialize
 * lmdb-rs        - database bindings
 * ndarray        - numpy equivalent
 * ort/onnx       - embeddings
