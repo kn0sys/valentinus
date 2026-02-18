@@ -54,7 +54,12 @@ impl DatabaseEnvironment {
 }
 
 /// Writes a value as a series of chunks within a given transaction.
-pub fn write_chunks_in_txn(txn: &Transaction, h: &DbHandle, k: &[u8], v: &[u8]) -> Result<(), MdbError> {
+pub fn write_chunks_in_txn(
+    txn: &Transaction,
+    h: &DbHandle,
+    k: &[u8],
+    v: &[u8],
+) -> Result<(), MdbError> {
     let s = System::new_all();
     let chunk_size = (s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO) as usize;
 
@@ -167,7 +172,7 @@ pub fn delete_in_txn(txn: &Transaction, h: &DbHandle, k: &[u8]) -> Result<(), Md
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{rng, RngCore};
+    use rand::{Rng, rng};
     use std::{fs, path::Path};
 
     // Helper to set up a clean test environment for database tests
@@ -208,7 +213,10 @@ mod tests {
 
         // Verify deletion
         let after_delete = read(&db.env, &db.handle, &k.to_vec())?;
-        assert!(after_delete.is_none(), "read should return None after deletion");
+        assert!(
+            after_delete.is_none(),
+            "read should return None after deletion"
+        );
 
         Ok(())
     }
