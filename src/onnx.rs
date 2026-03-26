@@ -47,15 +47,15 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
 
     // Load our model
     let mut session = Session::builder()
-        .map_err(OnnxError::OrtError)?
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?
         .with_optimization_level(GraphOptimizationLevel::Level1)
-        .map_err(OnnxError::OrtError)?
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?
         .with_parallel_execution(threads > 1)
-        .map_err(OnnxError::OrtError)?
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?
         .with_intra_threads(threads)
-        .map_err(OnnxError::OrtError)?
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?
         .commit_from_file(format!("{}/model.onnx", model_path))
-        .map_err(OnnxError::OrtError)?;
+        .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?;
     let tokenizer = Tokenizer::from_file(format!("{}/tokenizer.json", model_path))
         .map_err(|e| OnnxError::OrtError(ort::Error::new(e.to_string())))?;
     // Encode our input strings. `encode_batch` will pad each input to be the same length.
