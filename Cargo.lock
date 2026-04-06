@@ -1619,6 +1619,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokenizers",
  "uuid",
+ "vecpac",
  "wincode",
 ]
 
@@ -1627,6 +1628,15 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "vecpac"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b314c6a3708eaf2aac7eb0cf39cf164e5830de225ab510e413c8011ef1a5d51"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "wasi"

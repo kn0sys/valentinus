@@ -94,6 +94,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, RwLock};
 use thiserror::Error;
 use uuid::Uuid;
+use vecpac::HexNode;
 use wincode::{SchemaRead, SchemaWrite};
 
 // --- Public Structs and Enums ---
@@ -118,6 +119,8 @@ pub struct Valentinus {
 pub struct EmbeddingCollection {
     /// The original text documents.
     documents: Vec<String>,
+    /// Hexagonal spatial index
+    pub hex_index: HashMap<(i32, i32, i32), Vec<usize>>,
     /// The vector embeddings generated from the documents.
     data: Vec<f32>,
     shape: (usize, usize),
@@ -262,12 +265,31 @@ impl Valentinus {
         let array_embeddings: Array2<f32> =
             batch_embeddings(&model_path, &documents).map_err(ValentinusError::OnnxError)?;
         let shape = (array_embeddings.nrows(), array_embeddings.ncols());
-        let data = array_embeddings.into_raw_vec_and_offset().0;
+        let data = array_embeddings.clone().into_raw_vec_and_offset().0;
+
+        info!("Quantizing embeddings to the Seed of Life grid...");
+        let mut hex_index: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
+
+        // Loop through each row (embedding) in the 2D array
+        for (idx, row) in array_embeddings.axis_iter(Axis(0)).enumerate() {
+            let row_slice = row.to_slice().unwrap();
+
+            // 1. Project the 384D vector down to 2D
+            let (x, y) = Self::project_to_2d(row_slice);
+
+            // 2. Snap it to the exact vecpac geometry
+            let hex_node = HexNode::from_fractional(x, y);
+
+            // 3. Bucket the index
+            let hex_tuple = (hex_node.q, hex_node.r, hex_node.s);
+            hex_index.entry(hex_tuple).or_default().push(idx);
+        }
         // --- 3. Prepare Collection Struct ---
         let key = format!("{}-{}", VALENTINUS_KEY, Uuid::new_v4());
         let view = format!("{}-{}", VALENTINUS_VIEW, name);
         let collection = EmbeddingCollection {
             documents,
+            hex_index,
             data,
             shape,
             metadata,
@@ -483,6 +505,97 @@ impl Valentinus {
         })
     }
 
+    /// Finds the nearest document using the high-speed O(1) Hexagonal index.
+    pub fn hex_nearest_query(
+        &self,
+        query_string: String,
+        view_name: String,
+    ) -> Result<Vec<String>, ValentinusError> {
+        info!("Starting hex-packed query on collection '{}'", view_name);
+
+        let collection = self.get_collection(&view_name)?;
+
+        // 1. Generate the query embedding
+        let qv_string = vec![query_string];
+        let qv = batch_embeddings(&collection.model_path, &qv_string)
+            .map_err(ValentinusError::OnnxError)?;
+        let query_embedding = qv.index_axis(Axis(0), 0).to_slice().unwrap();
+
+        // 2. Project to 2D and Quantize
+        let (x, y) = Self::project_to_2d(query_embedding);
+        let target_hex = HexNode::from_fractional(x, y);
+
+        // 3. Pool Candidates from the Seed of Life (Target + 6 Neighbors)
+        let mut candidate_indices: Vec<usize> = Vec::new();
+
+        // Check target bucket
+        if let Some(indices) = collection
+            .hex_index
+            .get(&(target_hex.q, target_hex.r, target_hex.s))
+        {
+            candidate_indices.extend(indices);
+        }
+
+        // Check the 6 neighbor buckets
+        for neighbor in target_hex.neighbors() {
+            if let Some(indices) = collection
+                .hex_index
+                .get(&(neighbor.q, neighbor.r, neighbor.s))
+            {
+                candidate_indices.extend(indices);
+            }
+        }
+
+        // Deduplicate in case of overlaps (though geometrically there shouldn't be)
+        candidate_indices.sort_unstable();
+        candidate_indices.dedup();
+
+        // If the geometric neighborhood is completely empty (common in tiny datasets),
+        // we expand our net to include all known buckets in the index.
+        if candidate_indices.is_empty() {
+            info!("Local hex neighborhood is empty. Falling back to global semantic scan...");
+            for indices in collection.hex_index.values() {
+                candidate_indices.extend(indices);
+            }
+
+            // Deduplicate again after the global pull
+            candidate_indices.sort_unstable();
+            candidate_indices.dedup();
+        }
+
+        // Just in case the database is literally completely empty
+        if candidate_indices.is_empty() {
+            return Err(ValentinusError::NotFound(
+                "Database is completely empty.".to_string(),
+            ));
+        }
+
+        // 4. Rank Candidates using Cosine Similarity
+        let cols = collection.shape.1; // Number of dimensions (e.g., 384)
+        let mut scored_candidates: Vec<(f32, usize)> = Vec::new();
+
+        for &idx in &candidate_indices {
+            // Slice the specific vector straight out of the flat array
+            let start = idx * cols;
+            let end = start + cols;
+            let candidate_vector = &collection.data[start..end];
+
+            let score = Self::lite_cos_sim(query_embedding, candidate_vector);
+            scored_candidates.push((score, idx));
+        }
+
+        // Sort by highest score first
+        scored_candidates
+            .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        // 5. Return the sorted documents
+        let results: Vec<String> = scored_candidates
+            .iter()
+            .map(|&(_, idx)| collection.documents[idx].clone())
+            .collect();
+        Ok(results)
+    }
+
     /// Finds the nearest document in a collection using Euclidean distance.
     pub fn nearest_query(
         &self,
@@ -526,6 +639,35 @@ impl Valentinus {
     }
 
     // --- Private Helper Functions ---
+
+    /// Lightning-fast cosine similarity between two raw slices.
+    fn lite_cos_sim(a: &[f32], b: &[f32]) -> f32 {
+        let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+        let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+        let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if norm_a == 0.0 || norm_b == 0.0 {
+            0.0
+        } else {
+            dot / (norm_a * norm_b)
+        }
+    }
+
+    /// Projects a high-dimensional embedding down to a 2D coordinate for hex-packing.
+    fn project_to_2d(embedding: &[f32]) -> (f64, f64) {
+        let mut x = 0.0;
+        let mut y = 0.0;
+
+        // Deterministic pseudo-random projection preserving locality
+        for (i, &val) in embedding.iter().enumerate() {
+            let theta = i as f64 * 0.1375; // Using the Golden Angle approximation
+            x += val as f64 * theta.cos();
+            y += val as f64 * theta.sin();
+        }
+
+        // Scale the projection to spread the vectors across the hex grid
+        let scale_factor = 2.0;
+        (x * scale_factor, y * scale_factor)
+    }
 
     fn get_key_for_view(&self, view_name: &str) -> Result<String, ValentinusError> {
         let reader = self.db.env.get_reader()?;
@@ -611,8 +753,64 @@ mod tests {
     }
 
     #[test]
+    fn test_hex_nearest_query() -> Result<(), ValentinusError> {
+        let valentinus = setup_test_env("hex_query_test");
+        let query_str = "Felines resting on rugs!".to_string();
+        let collection_name = "hex_nearest_test_coll".to_string();
+        let (docs, md, ids) = create_nearest_test_data();
+        valentinus.create_collection(
+            collection_name.clone(),
+            docs.clone(),
+            md,
+            ids,
+            ModelType::AllMiniLmL6V2,
+            "all-MiniLM-L6-v2_onnx".to_string(),
+        )?;
+        let nearest_doc = valentinus.hex_nearest_query(query_str, collection_name.clone())?;
+        assert!(nearest_doc.contains(&docs[5]));
+
+        // --- 6. Delete Collections ---
+        valentinus.delete_collection(&collection_name)?;
+
+        // --- 7. Verify Deletion ---
+        let res = valentinus.get_collection(&collection_name);
+        assert!(matches!(res, Err(ValentinusError::CollectionNotFound(_))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dense_hex_population() -> Result<(), ValentinusError> {
+        let valentinus = setup_test_env("dense_hex_test");
+        let collection_name = "dense_hex_coll".to_string();
+        // Load our 150 procedurally generated documents
+        let (docs, md, ids) = create_dense_test_data();
+
+        valentinus.create_collection(
+            collection_name.clone(),
+            docs.clone(),
+            md,
+            ids,
+            ModelType::AllMiniLmL6V2,
+            "all-MiniLM-L6-v2_onnx".to_string(),
+        )?;
+
+        // Query targeting the Feline cluster
+        let query_str = "The fluffy cat sat comfortably on the soft mat.".to_string();
+        let nearest_docs = valentinus.hex_nearest_query(query_str, collection_name.clone())?;
+
+        // Verify it pulled a document from the correct semantic cluster
+        // Since we return the top match, we just check if it contains the base text of Cluster 1
+        assert!(nearest_docs[0].contains("fluffy cat"));
+
+        // Clean up
+        valentinus.delete_collection(&collection_name)?;
+
+        Ok(())
+    }
+
+    #[test]
     fn test_full_etl_and_query_workflow() -> Result<(), ValentinusError> {
-        env_logger::init();
         let valentinus = setup_test_env("full_workflow_test");
         let collection_name = "tesla_reviews".to_string();
 
@@ -726,6 +924,9 @@ mod tests {
             "Einstein's theory of relativity revolutionized our understanding of space and time.",
             "Traditional Italian pizza is famous for its thin crust, fresh ingredients, and wood-fired ovens.",
             "The American Revolution had a profound impact on the birth of the United States as a nation.",
+            "The cat sat on the mat.",
+            "Dogs make great companions.",
+            "Sacread geometry is the blueprint of reality."
         ]
         .iter()
         .map(|s| s.to_string())
@@ -733,6 +934,37 @@ mod tests {
 
         let ids = (0..docs.len()).map(|i| format!("id{}", i)).collect();
         let metadata = vec![vec![]; docs.len()]; // Empty metadata for this test
+        (docs, metadata, ids)
+    }
+
+    // Helper function for dense hex grid population
+    fn create_dense_test_data() -> (Vec<String>, Vec<Vec<String>>, Vec<String>) {
+        let mut docs = Vec::new();
+
+        // Cluster 1: Felines (50 variations)
+        for i in 0..50 {
+            docs.push(format!(
+                "The fluffy cat sat comfortably on the soft mat. Variation {}",
+                i
+            ));
+        }
+
+        // Cluster 2: Technology (50 variations)
+        for i in 0..50 {
+            docs.push(format!("The new smartphone features a high-resolution camera and fast processor. Iteration {}", i));
+        }
+
+        // Cluster 3: Space (50 variations)
+        for i in 0..50 {
+            docs.push(format!(
+                "Black holes possess immense gravitational pull in deep space. Object {}",
+                i
+            ));
+        }
+
+        let ids = (0..docs.len()).map(|i| format!("dense_id_{}", i)).collect();
+        let metadata = vec![vec![]; docs.len()];
+
         (docs, metadata, ids)
     }
 }

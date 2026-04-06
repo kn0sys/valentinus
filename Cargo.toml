@@ -38,6 +38,7 @@ sysinfo        = "0.38.1"
 thiserror      = "2.0.3"
 tokenizers     = { version = ">=0.13.4", default-features = false, features = [ "onig" ] }
 uuid           = { version = "1.10.0", features = [ "v4"] }
+vecpac	       = { version = "0.1.1", features = ["serde"] }
 
 [dev-dependencies]
 csv            = "1.3.0"
