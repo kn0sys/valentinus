@@ -6,7 +6,7 @@ extern crate kn0sys_lmdb_rs as lmdb;
 
 use lmdb::*;
 use log::{error, info};
-use sysinfo::System;
+use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 
 /// Ratio of map size to available memory is 20 percent
 const MAP_SIZE_MEMORY_RATIO: f32 = 0.2;
@@ -24,7 +24,9 @@ pub struct DatabaseEnvironment {
 impl DatabaseEnvironment {
     /// Opens environment in specified path.
     pub fn open(env: &str) -> Result<Self, MdbError> {
-        let s = System::new_all();
+        let s = System::new_with_specifics(
+            RefreshKind::nothing().with_memory(MemoryRefreshKind::nothing().with_ram()),
+        );
         let default_map_size: u64 =
             (s.available_memory() as f32 * MAP_SIZE_MEMORY_RATIO).floor() as u64;
         let env_map_size: u64 = match std::env::var("LMDB_MAP_SIZE") {
@@ -60,7 +62,9 @@ pub fn write_chunks_in_txn(
     k: &[u8],
     v: &[u8],
 ) -> Result<(), MdbError> {
-    let s = System::new_all();
+    let s = System::new_with_specifics(
+        RefreshKind::nothing().with_memory(MemoryRefreshKind::nothing().with_ram()),
+    );
     let chunk_size = (s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO) as usize;
 
     let chunks: Vec<_> = if v.is_empty() || chunk_size == 0 {
@@ -111,7 +115,9 @@ pub fn read(e: &Environment, h: &DbHandle, k: &Vec<u8>) -> Result<Option<Vec<u8>
         return Ok(Some(Vec::new()));
     }
 
-    let s = System::new_all();
+    let s = System::new_with_specifics(
+        RefreshKind::nothing().with_memory(MemoryRefreshKind::nothing().with_ram()),
+    );
     let chunk_size = (s.available_memory() as f32 * CHUNK_SIZE_MEMORY_RATIO) as usize;
     let mut result: Vec<u8> = Vec::with_capacity(num_chunks * chunk_size);
 
