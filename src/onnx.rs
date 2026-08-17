@@ -1,12 +1,8 @@
 #![deny(missing_docs)]
-
 //! ort is a Rust binding for ONNX Runtime. For information on how to get started with ort, see https://ort.pyke.io/introduction.
 
 use ndarray::*;
-use ort::{
-    execution_providers::CUDAExecutionProvider, session::Session,
-    session::builder::GraphOptimizationLevel,
-};
+use ort::{session::Session, session::builder::GraphOptimizationLevel};
 use tokenizers::Tokenizer;
 
 use log::*;
@@ -40,10 +36,7 @@ fn generate_embeddings(model_path: &String, data: &[String]) -> Result<Array2<f3
         model_path, threads
     );
     // Create the ONNX Runtime environment, enabling CPU/GPU execution providers for all sessions created in this process.
-    ort::init()
-        .with_name("valentinus")
-        .with_execution_providers([CUDAExecutionProvider::default().build()])
-        .commit();
+    ort::init().with_name("valentinus").commit();
 
     // Load our model
     let mut session = Session::builder()
